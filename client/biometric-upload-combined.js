@@ -683,11 +683,6 @@
     }
 
 })(typeof window !== 'undefined' ? window : global);
-
-// ============================================
-// FORMCYCLE INTEGRATION (below)
-// ============================================
-
 /**
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  * FORMCYCLE BIOMETRIC UPLOAD INTEGRATION - STANDALONE VERSION
@@ -709,7 +704,7 @@
  * - ✅ Schritt-für-Schritt Validierung mit Progress
  * - ✅ Nur gültige Bilder bleiben im Input
  *
- * Version: 1.1.0
+ * Version: 1.1.1 - Fix: Infinite loop in MutationObserver
  * Datum: 2025-01-13
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  */
@@ -1103,18 +1098,23 @@
     function setupBiometricValidation() {
         log('🔧 Setup biometrische Validierung...');
 
-        // Finde Upload-Felder
+        // Finde Upload-Felder (nur die noch nicht setupten!)
         const $fields = $('input[type="file"]').filter(function() {
-            return shouldValidateBiometric($(this));
+            const $field = $(this);
+            // Skip already setup fields
+            if ($field.data('biometric-setup') === true) {
+                return false;
+            }
+            return shouldValidateBiometric($field);
         });
 
         if ($fields.length === 0) {
-            log('⚠️ Keine Felder für biometrische Validierung gefunden');
+            log('⚠️ Keine neuen Felder für biometrische Validierung gefunden');
             log('   Strategie:', CONFIG.VALIDATION_STRATEGY);
             return;
         }
 
-        log(`📋 ${$fields.length} Feld(er) für biometrische Validierung gefunden`);
+        log(`📋 ${$fields.length} neue(s) Feld(er) für biometrische Validierung gefunden`);
 
         // Setup für jedes Feld
         $fields.each(function() {
@@ -1122,6 +1122,9 @@
             const fieldId = $field.attr('id') || '(keine ID)';
 
             log(`  → ${fieldId}`);
+
+            // Markiere Feld als setup (WICHTIG: Verhindert infinite loop!)
+            $field.data('biometric-setup', true);
 
             // Erstelle UI
             const ui = createValidationUI($field);
@@ -1181,8 +1184,36 @@
      * Überwacht dynamisch hinzugefügte Felder
      */
     function watchForNewFields() {
-        const observer = new MutationObserver(() => {
-            setupBiometricValidation();
+        const observer = new MutationObserver((mutations) => {
+            // Prüfe ob tatsächlich neue input[type="file"] Felder hinzugefügt wurden
+            let hasNewFileInputs = false;
+
+            for (const mutation of mutations) {
+                if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
+                    for (const node of mutation.addedNodes) {
+                        // Direkter file input?
+                        if (node.nodeType === 1 && node.tagName === 'INPUT' && node.type === 'file') {
+                            hasNewFileInputs = true;
+                            break;
+                        }
+                        // Oder enthält es file inputs?
+                        if (node.nodeType === 1 && node.querySelectorAll) {
+                            const fileInputs = node.querySelectorAll('input[type="file"]');
+                            if (fileInputs.length > 0) {
+                                hasNewFileInputs = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+                if (hasNewFileInputs) break;
+            }
+
+            // Nur setup aufrufen wenn tatsächlich neue file inputs gefunden wurden
+            if (hasNewFileInputs) {
+                log('🆕 Neue Upload-Felder im DOM erkannt');
+                setupBiometricValidation();
+            }
         });
 
         observer.observe(document.body, {

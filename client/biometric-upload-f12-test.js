@@ -1,26 +1,17 @@
-/**
- * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- * BIOMETRIC UPLOAD - COMBINED VERSION FOR F12 TESTING
- * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- *
- * ⚡ SCHNELL-TEST über Browser Console (F12):
- *
- * 1. Formcycle-Seite mit Upload-Feld öffnen
- * 2. F12 drücken (Developer Tools)
- * 3. Diese GANZE Datei in die Console kopieren & Enter
- * 4. Fertig! Alle Uploads werden jetzt biometrisch geprüft
- *
- * Features:
- * - ✅ Funktioniert mit ALLEN Upload-Feldern automatisch
- * - ✅ KEINE Formcycle-internen APIs
- * - ✅ Echtzeit-Validierung
- * - ✅ Visuelles Feedback
- * - ✅ Gesichtserkennung (optional, benötigt face-api.js)
- *
- * Version: 1.1.0 (Combined)
- * Datum: 2025-01-13
- * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- */
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// BIOMETRIC UPLOAD - F12 TEST VERSION
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//
+// Version: 1.1.1 - Fix: Infinite loop in MutationObserver
+//
+// SO VERWENDEN (F12 Console):
+// 1. F12 drücken → Console-Tab öffnen
+// 2. GESAMTEN Inhalt dieser Datei kopieren (Strg+A, Strg+C)
+// 3. In Console einfügen (Strg+V)
+// 4. Enter drücken
+// 5. Fertig! ✅
+//
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 console.clear();
 console.log('%c━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'color: #667eea; font-weight: bold');
@@ -28,13 +19,30 @@ console.log('%c⚡ BIOMETRIC UPLOAD - F12 TEST MODE', 'color: #667eea; font-weig
 console.log('%c━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'color: #667eea; font-weight: bold');
 console.log('📋 Lade Module...');
 
-// Prüfe jQuery
+// jQuery-Check
 if (typeof $ === 'undefined') {
-    console.error('❌ jQuery nicht verfügbar! Bitte zuerst jQuery laden.');
-    throw new Error('jQuery required');
+    console.error('❌ jQuery nicht verfügbar!');
+    console.log('Lade jQuery von CDN...');
+
+    const script = document.createElement('script');
+    script.src = 'https://code.jquery.com/jquery-3.7.1.min.js';
+    script.onload = function() {
+        console.log('✅ jQuery geladen');
+        loadBiometricModules();
+    };
+    document.head.appendChild(script);
+} else {
+    console.log('✅ jQuery verfügbar:', $.fn.jquery);
+    loadBiometricModules();
 }
 
-console.log('✅ jQuery verfügbar:', $.fn.jquery);
+function loadBiometricModules() {
+    console.log('');
+
+    // ════════════════════════════════════════════════════════════════════════════════
+    // BIOMETRIC VALIDATOR
+    // ════════════════════════════════════════════════════════════════════════════════
+
 /**
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  * BIOMETRIC IMAGE VALIDATOR - CLIENT-SIDE
@@ -720,11 +728,6 @@ console.log('✅ jQuery verfügbar:', $.fn.jquery);
     }
 
 })(typeof window !== 'undefined' ? window : global);
-
-// ============================================
-// FORMCYCLE INTEGRATION (below)
-// ============================================
-
 /**
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  * FORMCYCLE BIOMETRIC UPLOAD INTEGRATION - STANDALONE VERSION
@@ -746,7 +749,7 @@ console.log('✅ jQuery verfügbar:', $.fn.jquery);
  * - ✅ Schritt-für-Schritt Validierung mit Progress
  * - ✅ Nur gültige Bilder bleiben im Input
  *
- * Version: 1.1.0
+ * Version: 1.1.1 - Fix: Infinite loop in MutationObserver
  * Datum: 2025-01-13
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  */
@@ -1140,18 +1143,23 @@ console.log('✅ jQuery verfügbar:', $.fn.jquery);
     function setupBiometricValidation() {
         log('🔧 Setup biometrische Validierung...');
 
-        // Finde Upload-Felder
+        // Finde Upload-Felder (nur die noch nicht setupten!)
         const $fields = $('input[type="file"]').filter(function() {
-            return shouldValidateBiometric($(this));
+            const $field = $(this);
+            // Skip already setup fields
+            if ($field.data('biometric-setup') === true) {
+                return false;
+            }
+            return shouldValidateBiometric($field);
         });
 
         if ($fields.length === 0) {
-            log('⚠️ Keine Felder für biometrische Validierung gefunden');
+            log('⚠️ Keine neuen Felder für biometrische Validierung gefunden');
             log('   Strategie:', CONFIG.VALIDATION_STRATEGY);
             return;
         }
 
-        log(`📋 ${$fields.length} Feld(er) für biometrische Validierung gefunden`);
+        log(`📋 ${$fields.length} neue(s) Feld(er) für biometrische Validierung gefunden`);
 
         // Setup für jedes Feld
         $fields.each(function() {
@@ -1159,6 +1167,9 @@ console.log('✅ jQuery verfügbar:', $.fn.jquery);
             const fieldId = $field.attr('id') || '(keine ID)';
 
             log(`  → ${fieldId}`);
+
+            // Markiere Feld als setup (WICHTIG: Verhindert infinite loop!)
+            $field.data('biometric-setup', true);
 
             // Erstelle UI
             const ui = createValidationUI($field);
@@ -1218,8 +1229,36 @@ console.log('✅ jQuery verfügbar:', $.fn.jquery);
      * Überwacht dynamisch hinzugefügte Felder
      */
     function watchForNewFields() {
-        const observer = new MutationObserver(() => {
-            setupBiometricValidation();
+        const observer = new MutationObserver((mutations) => {
+            // Prüfe ob tatsächlich neue input[type="file"] Felder hinzugefügt wurden
+            let hasNewFileInputs = false;
+
+            for (const mutation of mutations) {
+                if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
+                    for (const node of mutation.addedNodes) {
+                        // Direkter file input?
+                        if (node.nodeType === 1 && node.tagName === 'INPUT' && node.type === 'file') {
+                            hasNewFileInputs = true;
+                            break;
+                        }
+                        // Oder enthält es file inputs?
+                        if (node.nodeType === 1 && node.querySelectorAll) {
+                            const fileInputs = node.querySelectorAll('input[type="file"]');
+                            if (fileInputs.length > 0) {
+                                hasNewFileInputs = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+                if (hasNewFileInputs) break;
+            }
+
+            // Nur setup aufrufen wenn tatsächlich neue file inputs gefunden wurden
+            if (hasNewFileInputs) {
+                log('🆕 Neue Upload-Felder im DOM erkannt');
+                setupBiometricValidation();
+            }
         });
 
         observer.observe(document.body, {
@@ -1274,3 +1313,8 @@ console.log('✅ jQuery verfügbar:', $.fn.jquery);
     }
 
 })();
+
+    console.log('');
+    console.log('%c✅ Alle Module geladen!', 'color: #28a745; font-weight: bold; font-size: 14px');
+    console.log('%c━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'color: #667eea; font-weight: bold');
+}
