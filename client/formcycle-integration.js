@@ -19,7 +19,7 @@
  * - ✅ Schritt-für-Schritt Validierung mit Progress
  * - ✅ Nur gültige Bilder bleiben im Input
  *
- * Version: 1.1.1 - Fix: Infinite loop in MutationObserver
+ * Version: 2.0.0 - ICAO-Standards korrekt implementiert (1050×1350px, Hintergrund-Check)
  * Datum: 2025-01-13
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  */
@@ -43,15 +43,23 @@
         // Server-Endpoint für detaillierte Validierung
         SERVER_ENDPOINT: '/api/validate-biometric',
 
-        // Biometrische Anforderungen (überschreibt Defaults)
+        // Biometrische Anforderungen (ICAO Doc 9303 Standard)
+        // ICAO: 35mm × 45mm @ 300 DPI = 1050 × 1350 Pixel
         BIOMETRIC_REQUIREMENTS: {
-            minWidth: 1200,
-            minHeight: 900,
-            recommendedWidth: 1200,
-            recommendedHeight: 1600,
-            maxFileSize: 500 * 1024, // 500 KB
+            minWidth: 1050,              // ICAO-Standard
+            minHeight: 1350,             // ICAO-Standard
+            recommendedWidth: 1050,      // ICAO-Standard
+            recommendedHeight: 1350,     // ICAO-Standard
+            aspectRatioMin: 0.76,        // 35:45 = 0.777
+            aspectRatioMax: 0.79,
+            maxFileSize: 500 * 1024,     // 500 KB
             enableFaceDetection: true,
             enableServerValidation: false,  // Deaktiviert per Default (Server optional)
+            background: {
+                minBrightness: 200,      // ICAO: Hell (weiß/hellgrau)
+                maxVariance: 30,         // ICAO: Einheitlich
+                checkEnabled: true       // Hintergrund-Prüfung aktiv
+            },
             debug: true
         },
 
@@ -162,9 +170,9 @@
             textAlign: 'center',
             fontSize: '13px'
         }).html(`
-            <div style="margin-bottom:6px">🔐 Biometrische Bildprüfung aktiv (Standalone)</div>
+            <div style="margin-bottom:6px">🔐 Biometrische Bildprüfung aktiv (ICAO-Standard)</div>
             <div style="font-size:11px;font-weight:normal;opacity:0.9">
-                Führerscheinfoto • Mind. 1200x900px • Format: JPEG/PNG • Max 500 KB
+                Führerscheinfoto • ICAO: 1050×1350px (35×45mm) • JPEG/PNG • Max 500 KB • Heller Hintergrund
             </div>
         `);
 
@@ -213,6 +221,7 @@
                     <div class="step" id="step-format">⏳ Format und Dateigröße...</div>
                     <div class="step" id="step-dimensions">⏳ Bildabmessungen...</div>
                     <div class="step" id="step-quality">⏳ Bildqualität...</div>
+                    <div class="step" id="step-background">⏳ Hintergrund (ICAO)...</div>
                     <div class="step" id="step-face">⏳ Gesichtserkennung...</div>
                 </div>
             </div>
@@ -343,6 +352,21 @@
                     qualityWarnings ? 'warning' : (qualityValid ? 'success' : 'error'),
                     qualityWarnings ? 'Qualität OK (mit Hinweisen)' : (qualityValid ? 'Qualität OK' : 'Qualität ungenügend')
                 );
+
+                // Background (ICAO)
+                if (result.details.background) {
+                    const bgValid = result.details.background.valid;
+                    const bgWarnings = result.details.background.warnings && result.details.background.warnings.length > 0;
+                    const brightness = result.details.background.brightness;
+                    updateValidationStep('step-background',
+                        bgValid ? (bgWarnings ? 'warning' : 'success') : 'error',
+                        bgValid ?
+                            (brightness ? `Hintergrund OK (Helligkeit: ${brightness.toFixed(0)}/255)` : 'Hintergrund OK') :
+                            'Hintergrund nicht ICAO-konform'
+                    );
+                } else {
+                    updateValidationStep('step-background', 'skipped', 'Übersprungen (deaktiviert)');
+                }
 
                 // Face
                 if (result.details.face) {

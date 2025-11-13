@@ -14,7 +14,7 @@
  * - ✅ Server-Validierung (detaillierte Biometrie)
  * - ✅ Visuelles Feedback mit Overlay
  *
- * Version: 1.0.0
+ * Version: 2.0.0 - ICAO-Standards korrekt implementiert
  * Datum: 2025-01-13
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  */
@@ -24,35 +24,46 @@
 
     /**
      * Biometrische Anforderungen nach ICAO Doc 9303
+     *
+     * ICAO-Standard: 35mm × 45mm @ 300 DPI = 1050 × 1350 Pixel
+     * Gesichtshöhe: 32-36mm = 70-80% der Bildhöhe
+     * Hintergrund: Schlicht, einheitlich, hell (weiß/hellgrau)
      */
     const BIOMETRIC_REQUIREMENTS = {
-        // Technische Anforderungen
-        minWidth: 600,              // Mindestbreite in Pixel
-        minHeight: 450,             // Mindesthöhe in Pixel
-        recommendedWidth: 1200,     // Empfohlene Breite
-        recommendedHeight: 900,     // Empfohlene Höhe
+        // Technische Anforderungen (ICAO: 35mm × 45mm @ 300 DPI)
+        minWidth: 1050,              // ICAO-Standard: 1050px (35mm @ 300 DPI)
+        minHeight: 1350,             // ICAO-Standard: 1350px (45mm @ 300 DPI)
+        recommendedWidth: 1050,      // ICAO-Standard
+        recommendedHeight: 1350,     // ICAO-Standard
 
-        // Seitenverhältnis (3:4 Portrait)
-        aspectRatioMin: 0.70,       // 3:4 = 0.75, mit Toleranz
-        aspectRatioMax: 0.80,
+        // Seitenverhältnis (35:45 Portrait)
+        aspectRatioMin: 0.76,        // 35:45 = 0.777..., mit Toleranz
+        aspectRatioMax: 0.79,
 
         // Dateigröße
-        minFileSize: 50 * 1024,     // 50 KB
-        maxFileSize: 500 * 1024,    // 500 KB
+        minFileSize: 50 * 1024,      // 50 KB
+        maxFileSize: 500 * 1024,     // 500 KB
 
         // Erlaubte Formate
         allowedFormats: ['image/jpeg', 'image/jpg', 'image/png'],
 
-        // Gesichtserkennung
+        // Gesichtserkennung (ICAO: 32-36mm = 70-80% der Bildhöhe)
         faceDetection: {
-            minFaceSize: 0.60,      // Gesicht muss mind. 60% der Bildhöhe sein
-            maxFaceSize: 0.85,      // Gesicht darf max. 85% der Bildhöhe sein
-            centerTolerance: 0.15   // Toleranz für Zentrierung (15%)
+            minFaceSize: 0.70,       // ICAO: Mind. 70% der Bildhöhe (32mm)
+            maxFaceSize: 0.80,       // ICAO: Max. 80% der Bildhöhe (36mm)
+            centerTolerance: 0.15    // Toleranz für Zentrierung (15%)
         },
 
         // Qualität
-        minSharpness: 100,          // Laplace-Varianz für Schärfe
-        minContrast: 40             // Mindestkontrast
+        minSharpness: 100,           // Laplace-Varianz für Schärfe
+        minContrast: 40,             // Mindestkontrast
+
+        // Hintergrund (ICAO: Schlicht, einheitlich, hell)
+        background: {
+            minBrightness: 200,      // Min. Helligkeit (0-255, weiß/hellgrau)
+            maxVariance: 30,         // Max. Varianz (Einheitlichkeit)
+            checkEnabled: true       // Hintergrund-Prüfung aktiviert
+        }
     };
 
     /**
@@ -141,6 +152,18 @@
                     result.warnings.push(...qualityCheck.warnings);
                 }
 
+                // 6. Hintergrund-Check (ICAO: Schlicht, einheitlich, hell)
+                if (this.config.background && this.config.background.checkEnabled) {
+                    const backgroundCheck = await this.validateBackground(imageData);
+                    result.details.background = backgroundCheck;
+                    if (!backgroundCheck.valid) {
+                        result.errors.push(...backgroundCheck.errors);
+                    }
+                    if (backgroundCheck.warnings.length > 0) {
+                        result.warnings.push(...backgroundCheck.warnings);
+                    }
+                }
+
                 // Wenn bisher Fehler, breche ab (keine teure Face-Detection)
                 if (result.errors.length > 0) {
                     result.valid = false;
@@ -148,7 +171,7 @@
                     return result;
                 }
 
-                // 6. Gesichtserkennung (optional, clientseitig)
+                // 7. Gesichtserkennung (optional, clientseitig)
                 if (this.config.enableFaceDetection) {
                     const faceCheck = await this.validateFace(imageData);
                     result.details.face = faceCheck;
@@ -160,7 +183,7 @@
                     }
                 }
 
-                // 7. Server-Validierung (detaillierte Biometrie)
+                // 8. Server-Validierung (detaillierte Biometrie)
                 if (this.config.enableServerValidation && this.config.serverEndpoint) {
                     const serverCheck = await this.validateOnServer(file);
                     result.details.server = serverCheck;
@@ -464,6 +487,120 @@
             }
 
             return Math.sqrt(variance / count);
+        }
+
+        /**
+         * 6. Hintergrund-Validierung (ICAO: Schlicht, einheitlich, hell)
+         */
+        async validateBackground(imageData) {
+            const result = {
+                valid: false,
+                errors: [],
+                warnings: [],
+                brightness: null,
+                variance: null,
+                isUniform: false
+            };
+
+            try {
+                const ctx = imageData.ctx;
+                const width = imageData.width;
+                const height = imageData.height;
+
+                // Analysiere Randbereiche (Hintergrund ist typischerweise am Rand)
+                // Nehme 10% von allen 4 Seiten
+                const borderSize = Math.floor(Math.min(width, height) * 0.1);
+
+                // Sample-Bereiche: Oben, Unten, Links, Rechts
+                const samples = [
+                    ctx.getImageData(0, 0, width, borderSize),                    // Oben
+                    ctx.getImageData(0, height - borderSize, width, borderSize),  // Unten
+                    ctx.getImageData(0, 0, borderSize, height),                   // Links
+                    ctx.getImageData(width - borderSize, 0, borderSize, height)   // Rechts
+                ];
+
+                let totalBrightness = 0;
+                let totalPixels = 0;
+                const brightnessValues = [];
+
+                // Berechne Helligkeit für alle Sample-Bereiche
+                for (const sample of samples) {
+                    const data = sample.data;
+                    for (let i = 0; i < data.length; i += 4) {
+                        const r = data[i];
+                        const g = data[i + 1];
+                        const b = data[i + 2];
+
+                        // Durchschnittliche Helligkeit (Grauwert)
+                        const brightness = (r + g + b) / 3;
+                        brightnessValues.push(brightness);
+                        totalBrightness += brightness;
+                        totalPixels++;
+                    }
+                }
+
+                // Durchschnittliche Helligkeit
+                const avgBrightness = totalBrightness / totalPixels;
+                result.brightness = avgBrightness;
+
+                // Varianz berechnen (misst Einheitlichkeit)
+                let variance = 0;
+                for (const brightness of brightnessValues) {
+                    variance += (brightness - avgBrightness) * (brightness - avgBrightness);
+                }
+                variance = Math.sqrt(variance / brightnessValues.length);
+                result.variance = variance;
+
+                // Prüfe Helligkeit (ICAO: Hell - weiß/hellgrau)
+                const minBrightness = this.config.background?.minBrightness || 200;
+                if (avgBrightness < minBrightness) {
+                    result.errors.push(
+                        `Hintergrund zu dunkel (${avgBrightness.toFixed(0)}/255). ` +
+                        `ICAO erfordert hellen Hintergrund (weiß/hellgrau, min. ${minBrightness})`
+                    );
+                }
+
+                // Prüfe Einheitlichkeit (ICAO: Einheitlich, keine Muster/Schatten)
+                const maxVariance = this.config.background?.maxVariance || 30;
+                if (variance > maxVariance) {
+                    result.errors.push(
+                        `Hintergrund nicht einheitlich (Varianz: ${variance.toFixed(1)}). ` +
+                        `ICAO erfordert schlichten, einheitlichen Hintergrund (max. Varianz: ${maxVariance})`
+                    );
+                } else {
+                    result.isUniform = true;
+                }
+
+                // Warnungen für grenzwertige Fälle
+                if (avgBrightness >= minBrightness && avgBrightness < minBrightness + 20) {
+                    result.warnings.push(
+                        `Hintergrund könnte heller sein (${avgBrightness.toFixed(0)}/255). ` +
+                        `Empfohlen: >220 für optimale Ergebnisse`
+                    );
+                }
+
+                if (variance > maxVariance * 0.7 && variance <= maxVariance) {
+                    result.warnings.push(
+                        `Hintergrund hat leichte Ungleichmäßigkeiten. ` +
+                        `Für beste Ergebnisse: Gleichmäßige Ausleuchtung verwenden`
+                    );
+                }
+
+                result.valid = result.errors.length === 0;
+
+                this.log('Hintergrund-Analyse:', {
+                    brightness: avgBrightness.toFixed(1),
+                    variance: variance.toFixed(1),
+                    valid: result.valid
+                });
+
+            } catch (error) {
+                this.log('Hintergrund-Validierung fehlgeschlagen:', error);
+                result.warnings.push('Hintergrund-Analyse nicht möglich');
+                result.valid = true; // Nicht blockieren bei technischen Fehlern
+            }
+
+            return result;
         }
 
         /**
