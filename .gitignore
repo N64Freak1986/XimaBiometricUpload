@@ -1,0 +1,56 @@
+# Node.js
+node_modules/
+npm-debug.log
+yarn-error.log
+package-lock.json
+yarn.lock
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+*.egg-info/
+dist/
+build/
+
+# Uploads & Temp
+server/*/uploads/*
+!server/*/uploads/.gitkeep
+server/*/temp/*
+!server/*/temp/.gitkeep
+
+# Logs
+server/*/logs/*
+!server/*/logs/.gitkeep
+*.log
+
+# Face-API Models (zu groß für Git)
+server/node/models/*
+!server/node/models/.gitkeep
+!server/node/models/README.md
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Test
+coverage/
+.pytest_cache/
+.coverage
+
+# OS
+Thumbs.db

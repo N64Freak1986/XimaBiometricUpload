@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>XIMA Formcycle - Biometrischer Upload Demo</title>
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+
+        h1 {
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .info-box {
+            background: #f0f4ff;
+            border-left: 4px solid #667eea;
+            padding: 15px;
+            margin-bottom: 30px;
+            border-radius: 6px;
+        }
+
+        .info-box h3 {
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 16px;
+        }
+
+        .info-box ul {
+            margin-left: 20px;
+            color: #555;
+            font-size: 14px;
+        }
+
+        .info-box li {
+            margin-bottom: 5px;
+        }
+
+        .form-group {
+            margin-bottom: 25px;
+        }
+
+        label {
+            display: block;
+            font-weight: bold;
+            margin-bottom: 8px;
+            color: #333;
+        }
+
+        input[type="text"],
+        input[type="email"],
+        input[type="file"] {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .upload-field-container {
+            position: relative;
+        }
+
+        .btn-submit {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 20px;
+            transition: transform 0.2s;
+        }
+
+        .btn-submit:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-submit:active {
+            transform: translateY(0);
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+            color: #999;
+            font-size: 12px;
+        }
+
+        /* Styles für biometric-validator werden automatisch injiziert */
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 Biometrischer Foto-Upload</h1>
+        <p class="subtitle">Demo: XIMA Formcycle mit Führerscheinfoto-Validierung</p>
+
+        <div class="info-box">
+            <h3>📋 Anforderungen an Ihr Foto</h3>
+            <ul>
+                <li>✅ Format: JPEG oder PNG</li>
+                <li>✅ Mindestgröße: 1200 x 900 Pixel</li>
+                <li>✅ Dateigröße: Maximal 500 KB</li>
+                <li>✅ Genau eine Person</li>
+                <li>✅ Frontalansicht, neutraler Gesichtsausdruck</li>
+                <li>✅ Heller, einheitlicher Hintergrund</li>
+                <li>✅ Keine Sonnenbrille oder Kopfbedeckung</li>
+            </ul>
+        </div>
+
+        <form id="demo-form">
+            <!-- Standard-Felder -->
+            <div class="form-group">
+                <label for="name">Name *</label>
+                <input type="text" id="name" name="name" required placeholder="Max Mustermann">
+            </div>
+
+            <div class="form-group">
+                <label for="email">E-Mail *</label>
+                <input type="email" id="email" name="email" required placeholder="max@example.com">
+            </div>
+
+            <!-- BIOMETRISCHES UPLOAD-FELD -->
+            <div class="form-group">
+                <label for="xi-upl-passport-photo">Führerscheinfoto * 🔐</label>
+
+                <!-- Upload-Container (wird von formcycle-integration.js erweitert) -->
+                <div id="xi-upl-passport-photo-xc" class="upload-field-container">
+                    <input
+                        type="file"
+                        id="xi-upl-passport-photo"
+                        name="passport_photo"
+                        accept="image/jpeg,image/jpg,image/png"
+                        class="biometric-upload"
+                        required
+                        multiple
+                    >
+
+                    <!-- Multiple-Upload UI wird hier injiziert -->
+                    <!-- Biometric-Validation UI wird hier injiziert -->
+                </div>
+            </div>
+
+            <!-- Submit -->
+            <button type="submit" class="btn-submit">
+                📤 Formular absenden
+            </button>
+        </form>
+
+        <div class="footer">
+            <p>
+                🔒 Ihre Daten werden verschlüsselt übertragen und DSGVO-konform verarbeitet.<br>
+                Biometrische Prüfung erfolgt nach ICAO/ISO 19794-5 Standard.
+            </p>
+        </div>
+    </div>
+
+    <!-- jQuery (falls nicht schon geladen) -->
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+
+    <!-- face-api.js (optional, für clientseitige Gesichtserkennung) -->
+    <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.12/dist/face-api.min.js"></script>
+
+    <!-- XIMA Multiple-Upload System (Ihr bestehendes System) -->
+    <!-- <script src="/path/to/your-multiple-upload.js"></script> -->
+
+    <!-- Biometric Validator -->
+    <script src="../client/biometric-validator.js"></script>
+
+    <!-- Formcycle Integration -->
+    <script src="../client/formcycle-integration.js"></script>
+
+    <!-- Demo-spezifisches JavaScript -->
+    <script>
+        // Form-Submit Handler
+        document.getElementById('demo-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            // Prüfe ob gültige Dateien vorhanden
+            const uploadField = document.getElementById('xi-upl-passport-photo');
+            const files = uploadField.files;
+
+            if (files.length === 0) {
+                alert('❌ Bitte laden Sie ein Foto hoch.');
+                return;
+            }
+
+            // In echter Anwendung: FormData erstellen und per AJAX senden
+            const formData = new FormData(this);
+
+            console.log('📤 Formular wird abgesendet...');
+            console.log('Daten:', Object.fromEntries(formData));
+            console.log('Dateien:', Array.from(files).map(f => ({
+                name: f.name,
+                size: f.size,
+                type: f.type
+            })));
+
+            // Demo: Erfolgs-Meldung
+            alert(
+                '✅ Formular erfolgreich abgesendet!\n\n' +
+                'Name: ' + formData.get('name') + '\n' +
+                'E-Mail: ' + formData.get('email') + '\n' +
+                'Foto: ' + files[0].name + ' (' + (files[0].size / 1024).toFixed(1) + ' KB)\n\n' +
+                'In einer echten Anwendung würde das Formular jetzt per AJAX an den Server gesendet.'
+            );
+        });
+
+        // Debug-Helper
+        window.addEventListener('load', function() {
+            console.log('%c━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'color: #667eea; font-weight: bold');
+            console.log('%c🔐 BIOMETRIC UPLOAD DEMO', 'color: #667eea; font-weight: bold; font-size: 16px');
+            console.log('%c━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'color: #667eea; font-weight: bold');
+            console.log('✅ Demo-Seite geladen');
+            console.log('📋 Upload-Feld mit ID:', 'xi-upl-passport-photo');
+            console.log('🔧 CSS-Klasse:', 'biometric-upload');
+            console.log('');
+            console.log('Debug-Commands:');
+            console.log('  multiUploadDebug.testGetUpload() - Test Upload-System');
+            console.log('  BiometricValidator - Validator-Klasse');
+            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        });
+    </script>
+</body>
+</html>
