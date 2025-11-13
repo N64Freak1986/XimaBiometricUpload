@@ -1,18 +1,35 @@
 /**
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- * BIOMETRIC IMAGE VALIDATOR - CLIENT-SIDE
+ * BIOMETRIC IMAGE VALIDATOR - CLIENT-SIDE PRE-VALIDATOR
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  *
- * Validiert Bilder nach biometrischen Anforderungen für Führerscheinfotos
- * gemäß ICAO/ISO 19794-5 Standard
+ * ⚠️ WICHTIGER HINWEIS - GRENZEN DER CLIENT-VALIDIERUNG:
  *
- * Features:
- * - ✅ Technische Validierung (Größe, Format, Auflösung)
- * - ✅ Seitenverhältnis-Prüfung (3:4 Portrait)
- * - ✅ Bildqualität (Schärfe, Kontrast)
- * - ✅ Einfache Gesichtserkennung (via face-api.js)
- * - ✅ Server-Validierung (detaillierte Biometrie)
- * - ✅ Visuelles Feedback mit Overlay
+ * Dieser Validator ist ein PRE-FILTER für technische und geometrische Anforderungen.
+ * Er kann NICHT alle ICAO-Anforderungen zuverlässig prüfen!
+ *
+ * ✅ WAS GEPRÜFT WIRD (Client-seitig):
+ *    - Bildgröße, Format, Dateigröße
+ *    - Seitenverhältnis (35:45)
+ *    - Gesichtsposition und -größe (70-80%)
+ *    - Hintergrund-Helligkeit und Einheitlichkeit
+ *    - Bildschärfe und Kontrast
+ *
+ * ❌ WAS NICHT GEPRÜFT WERDEN KANN (Client-seitig):
+ *    - Brillenreflexionen
+ *    - Gesichtsausdruck (neutral?)
+ *    - Augen geöffnet/geschlossen
+ *    - Mund geschlossen
+ *    - Haare, die das Gesicht verdecken
+ *    - Schatten im Gesicht
+ *    - Korrekte Kopfhaltung (frontal)
+ *    - Accessoires (Kopfbedeckung, Schmuck)
+ *
+ * 💡 EMPFEHLUNG:
+ *    Aktivieren Sie IMMER die Server-Validierung (enableServerValidation: true)
+ *    für vollständige ICAO-Konformität. Die Client-Validierung filtert nur
+ *    ~90% der ungeeigneten Bilder (falsche Größe, Hintergrund, etc.) und
+ *    reduziert damit die Last auf dem Server.
  *
  * Version: 2.0.0 - ICAO-Standards korrekt implementiert
  * Datum: 2025-01-13

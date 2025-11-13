@@ -1,18 +1,35 @@
 /**
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- * BIOMETRIC IMAGE VALIDATOR - CLIENT-SIDE
+ * BIOMETRIC IMAGE VALIDATOR - CLIENT-SIDE PRE-VALIDATOR
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  *
- * Validiert Bilder nach biometrischen Anforderungen für Führerscheinfotos
- * gemäß ICAO/ISO 19794-5 Standard
+ * ⚠️ WICHTIGER HINWEIS - GRENZEN DER CLIENT-VALIDIERUNG:
  *
- * Features:
- * - ✅ Technische Validierung (Größe, Format, Auflösung)
- * - ✅ Seitenverhältnis-Prüfung (3:4 Portrait)
- * - ✅ Bildqualität (Schärfe, Kontrast)
- * - ✅ Einfache Gesichtserkennung (via face-api.js)
- * - ✅ Server-Validierung (detaillierte Biometrie)
- * - ✅ Visuelles Feedback mit Overlay
+ * Dieser Validator ist ein PRE-FILTER für technische und geometrische Anforderungen.
+ * Er kann NICHT alle ICAO-Anforderungen zuverlässig prüfen!
+ *
+ * ✅ WAS GEPRÜFT WIRD (Client-seitig):
+ *    - Bildgröße, Format, Dateigröße
+ *    - Seitenverhältnis (35:45)
+ *    - Gesichtsposition und -größe (70-80%)
+ *    - Hintergrund-Helligkeit und Einheitlichkeit
+ *    - Bildschärfe und Kontrast
+ *
+ * ❌ WAS NICHT GEPRÜFT WERDEN KANN (Client-seitig):
+ *    - Brillenreflexionen
+ *    - Gesichtsausdruck (neutral?)
+ *    - Augen geöffnet/geschlossen
+ *    - Mund geschlossen
+ *    - Haare, die das Gesicht verdecken
+ *    - Schatten im Gesicht
+ *    - Korrekte Kopfhaltung (frontal)
+ *    - Accessoires (Kopfbedeckung, Schmuck)
+ *
+ * 💡 EMPFEHLUNG:
+ *    Aktivieren Sie IMMER die Server-Validierung (enableServerValidation: true)
+ *    für vollständige ICAO-Konformität. Die Client-Validierung filtert nur
+ *    ~90% der ungeeigneten Bilder (falsche Größe, Hintergrund, etc.) und
+ *    reduziert damit die Last auf dem Server.
  *
  * Version: 2.0.0 - ICAO-Standards korrekt implementiert
  * Datum: 2025-01-13
@@ -828,11 +845,18 @@
  * ⚠️ WICHTIG: Verwendet KEINE Formcycle-internen APIs!
  * ⚠️ Funktioniert mit Standard HTML5 File-Inputs!
  *
+ * ⚠️ GRENZEN DER CLIENT-VALIDIERUNG:
+ *    Diese Validierung ist ein PRE-FILTER. Sie prüft technische Anforderungen
+ *    (Größe, Hintergrund, Gesichtsposition), aber NICHT alle ICAO-Kriterien!
+ *    Für vollständige ICAO-Konformität (Brillenreflexionen, Gesichtsausdruck,
+ *    etc.) MUSS die Server-Validierung aktiviert werden!
+ *
  * INTEGRATION:
  * 1. Inkludiere biometric-validator.js
  * 2. Inkludiere diese Datei
  * 3. Alle Upload-Felder werden automatisch validiert
  * 4. KEINE Abhängigkeiten zu Formcycle-APIs (ajaxUpload, ajaxUploadManager, etc.)
+ * 5. Aktiviere enableServerValidation für vollständige ICAO-Prüfung!
  *
  * Features:
  * - ✅ Funktioniert mit normalem <input type="file">
@@ -840,6 +864,7 @@
  * - ✅ Visuelles Feedback mit Vorschau
  * - ✅ Schritt-für-Schritt Validierung mit Progress
  * - ✅ Nur gültige Bilder bleiben im Input
+ * - ⚠️ Client = Pre-Filter (~90% Fehler), Server = Vollständige ICAO-Prüfung
  *
  * Version: 2.0.0 - ICAO-Standards korrekt implementiert (1050×1350px, Hintergrund-Check)
  * Datum: 2025-01-13
@@ -982,10 +1007,15 @@
             marginBottom: '15px'
         });
 
-        // Banner
+        // Banner (mit Warnung wenn Server-Validierung deaktiviert)
+        const serverValidationEnabled = CONFIG.BIOMETRIC_REQUIREMENTS.enableServerValidation;
+        const bannerBg = serverValidationEnabled
+            ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+            : 'linear-gradient(135deg, #f39c12 0%, #e67e22 100%)'; // Orange für Warnung
+
         const $banner = $('<div class="biometric-banner"></div>').css({
             padding: '12px 15px',
-            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            background: bannerBg,
             color: 'white',
             borderRadius: '8px 8px 0 0',
             fontWeight: 'bold',
@@ -996,6 +1026,13 @@
             <div style="font-size:11px;font-weight:normal;opacity:0.9">
                 Führerscheinfoto • ICAO: 1050×1350px (35×45mm) • JPEG/PNG • Max 500 KB • Heller Hintergrund
             </div>
+            ${!serverValidationEnabled ? `
+                <div style="margin-top:8px;padding:8px;background:rgba(0,0,0,0.3);border-radius:4px;font-size:11px;font-weight:normal">
+                    ⚠️ NUR CLIENT-VALIDIERUNG AKTIV<br>
+                    Prüft nur technische Anforderungen. Für vollständige ICAO-Konformität<br>
+                    (Brillenreflexionen, Gesichtsausdruck, etc.) Server-Validierung aktivieren!
+                </div>
+            ` : ''}
         `);
 
         // Status-Container
@@ -1086,15 +1123,26 @@
 
         if (result.valid) {
             // ERFOLG
+            const serverValidationEnabled = CONFIG.BIOMETRIC_REQUIREMENTS.enableServerValidation;
+
             $status.html(`
                 <div style="text-align:center;padding:20px;color:#28a745">
                     <div style="font-size:48px;margin-bottom:10px">✅</div>
                     <div style="font-weight:bold;font-size:18px;margin-bottom:10px">
-                        Bild erfüllt alle Anforderungen!
+                        Bild erfüllt alle ${serverValidationEnabled ? '' : 'technischen '}Anforderungen!
                     </div>
                     <div style="font-size:14px;color:#666">
                         ${fileName}
                     </div>
+                    ${!serverValidationEnabled ? `
+                        <div style="margin-top:15px;padding:12px;background:#fff3cd;border:2px solid #ffc107;border-radius:6px;text-align:left">
+                            <strong>⚠️ WICHTIGER HINWEIS:</strong><br>
+                            Es wurde nur die <strong>Client-seitige Validierung</strong> durchgeführt.<br>
+                            Diese prüft <u>nicht</u>: Brillenreflexionen, Gesichtsausdruck, Augen auf/zu, Haare im Gesicht, etc.<br>
+                            <br>
+                            <strong>Für vollständige ICAO-Konformität Server-Validierung aktivieren!</strong>
+                        </div>
+                    ` : ''}
                     ${result.warnings.length > 0 ? `
                         <div style="margin-top:15px;padding:10px;background:#fff3cd;border-radius:6px;text-align:left">
                             <strong>⚠️ Hinweise:</strong><br>
@@ -1409,6 +1457,16 @@
         console.log('');
         console.log('⚠️ WICHTIG: Verwendet KEINE Formcycle-internen APIs!');
         console.log('⚠️ Funktioniert mit Standard HTML5 File-Inputs!');
+        console.log('');
+
+        if (!CONFIG.BIOMETRIC_REQUIREMENTS.enableServerValidation) {
+            console.log('%c⚠️ WARNUNG: NUR CLIENT-VALIDIERUNG AKTIV!', 'color: #f39c12; font-weight: bold; font-size: 14px');
+            console.log('%c   Client-Validierung ist nur ein PRE-FILTER!', 'color: #f39c12');
+            console.log('%c   Prüft NICHT: Brillenreflexionen, Gesichtsausdruck, Augen, Haare, etc.', 'color: #f39c12');
+            console.log('%c   → enableServerValidation: true aktivieren für vollständige ICAO-Prüfung!', 'color: #f39c12; font-weight: bold');
+            console.log('');
+        }
+
         console.groupEnd();
 
         // Setup Validierung
