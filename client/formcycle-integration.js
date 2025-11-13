@@ -1,24 +1,25 @@
 /**
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- * FORMCYCLE BIOMETRIC UPLOAD INTEGRATION
+ * FORMCYCLE BIOMETRIC UPLOAD INTEGRATION - STANDALONE VERSION
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  *
- * Integriert biometrische Validierung in bestehendes Formcycle Upload-System
+ * ⚠️ WICHTIG: Verwendet KEINE Formcycle-internen APIs!
+ * ⚠️ Funktioniert mit Standard HTML5 File-Inputs!
  *
  * INTEGRATION:
  * 1. Inkludiere biometric-validator.js
  * 2. Inkludiere diese Datei
- * 3. Alle Upload-Felder werden automatisch validiert (siehe VALIDATION_STRATEGY)
- * 4. Profit!
+ * 3. Alle Upload-Felder werden automatisch validiert
+ * 4. KEINE Abhängigkeiten zu Formcycle-APIs (ajaxUpload, ajaxUploadManager, etc.)
  *
  * Features:
- * - ✅ Automatische Integration in bestehenden Multiple-Upload
+ * - ✅ Funktioniert mit normalem <input type="file">
  * - ✅ Echtzeit-Validierung bei Dateiauswahl
  * - ✅ Visuelles Feedback mit Vorschau
  * - ✅ Schritt-für-Schritt Validierung mit Progress
- * - ✅ Nur gültige Bilder werden hochgeladen
+ * - ✅ Nur gültige Bilder bleiben im Input
  *
- * Version: 1.0.0
+ * Version: 1.1.0
  * Datum: 2025-01-13
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  */
@@ -50,7 +51,7 @@
             recommendedHeight: 1600,
             maxFileSize: 500 * 1024, // 500 KB
             enableFaceDetection: true,
-            enableServerValidation: true,
+            enableServerValidation: false,  // Deaktiviert per Default (Server optional)
             debug: true
         },
 
@@ -127,7 +128,15 @@
      */
     function createValidationUI($field) {
         const fieldId = $field.attr('id');
-        const $container = $field.closest('[id$="-xc"]');
+
+        // Finde Container - suche nach verschiedenen Mustern
+        let $container = $field.closest('[id$="-xc"]');
+        if (!$container.length) {
+            $container = $field.closest('.form-group');
+        }
+        if (!$container.length) {
+            $container = $field.parent();
+        }
 
         if (!$container.length) {
             log('⚠️ Container nicht gefunden für', fieldId);
@@ -153,7 +162,7 @@
             textAlign: 'center',
             fontSize: '13px'
         }).html(`
-            <div style="margin-bottom:6px">🔐 Biometrische Bildprüfung aktiv</div>
+            <div style="margin-bottom:6px">🔐 Biometrische Bildprüfung aktiv (Standalone)</div>
             <div style="font-size:11px;font-weight:normal;opacity:0.9">
                 Führerscheinfoto • Mind. 1200x900px • Format: JPEG/PNG • Max 500 KB
             </div>
@@ -177,7 +186,9 @@
         });
 
         $ui.append($banner, $status, $preview);
-        $container.find('.multi-upload-banner').after($ui);
+
+        // Füge UI nach dem Upload-Feld ein
+        $field.after($ui);
 
         log('✅ Validierungs-UI erstellt für:', fieldId);
 
@@ -203,7 +214,6 @@
                     <div class="step" id="step-dimensions">⏳ Bildabmessungen...</div>
                     <div class="step" id="step-quality">⏳ Bildqualität...</div>
                     <div class="step" id="step-face">⏳ Gesichtserkennung...</div>
-                    <div class="step" id="step-server">⏳ Server-Validierung...</div>
                 </div>
             </div>
         `).show();
@@ -291,21 +301,6 @@
         }
     }
 
-    /**
-     * Zeigt Bild-Preview mit Overlay
-     */
-    function showPreview(ui, imageDataUrl, result) {
-        if (!CONFIG.SHOW_PREVIEW) return;
-
-        const $preview = ui.$preview;
-
-        $preview.html(`
-            <div style="display:inline-block;border:2px solid ${result.valid ? '#28a745' : '#dc3545'};border-radius:8px;padding:10px;background:white">
-                <img src="${imageDataUrl}" style="max-width:400px;max-height:400px;display:block">
-            </div>
-        `).show();
-    }
-
     // ============================================
     // VALIDATION LOGIC
     // ============================================
@@ -323,11 +318,6 @@
 
         try {
             const validator = getValidator();
-
-            // Hook in Validierungs-Steps für UI-Updates
-            const originalValidate = validator.validateImage.bind(validator);
-
-            // Starte Validierung
             const result = await validator.validateImage(file);
 
             // Update Steps basierend auf Result
@@ -363,18 +353,7 @@
                         faceDetected ? `Gesicht erkannt (${result.details.face.faceCount})` : 'Kein Gesicht erkannt'
                     );
                 } else {
-                    updateValidationStep('step-face', 'skipped', 'Übersprungen');
-                }
-
-                // Server
-                if (result.details.server) {
-                    const serverValid = result.details.server.valid;
-                    updateValidationStep('step-server',
-                        serverValid ? 'success' : 'error',
-                        serverValid ? 'Server-Validierung OK' : 'Server-Validierung fehlgeschlagen'
-                    );
-                } else {
-                    updateValidationStep('step-server', 'skipped', 'Übersprungen');
+                    updateValidationStep('step-face', 'skipped', 'Übersprungen (face-api.js nicht verfügbar)');
                 }
 
                 // Warte kurz damit User Steps sieht
@@ -383,15 +362,6 @@
 
             // Zeige Ergebnis
             showValidationResult(ui, result, file.name);
-
-            // Preview (wenn vorhanden)
-            if (result.details.image) {
-                const imageDataUrl = validator.createFeedbackOverlay(
-                    result.details.image,
-                    result
-                );
-                showPreview(ui, imageDataUrl, result);
-            }
 
             log(result.valid ? '✅ Validierung erfolgreich' : '❌ Validierung fehlgeschlagen', result);
 
@@ -421,23 +391,20 @@
 
         // Erstelle neue FileList ohne die ungültige Datei
         const dt = new DataTransfer();
-        const validFiles = [];
 
         files.forEach(file => {
             if (file !== fileToRemove) {
                 dt.items.add(file);
-                validFiles.push(file);
             }
         });
 
         $field[0].files = dt.files;
-        $field.data('validFiles', validFiles);
 
         log('🗑️ Ungültige Datei entfernt:', fileToRemove.name);
     }
 
     // ============================================
-    // INTEGRATION IN FORMCYCLE
+    // INTEGRATION
     // ============================================
 
     /**
@@ -462,7 +429,7 @@
         // Setup für jedes Feld
         $fields.each(function() {
             const $field = $(this);
-            const fieldId = $field.attr('id');
+            const fieldId = $field.attr('id') || '(keine ID)';
 
             log(`  → ${fieldId}`);
 
@@ -508,9 +475,6 @@
                             }
                         }
 
-                        // Trigger Update der Datei-Liste (für Multiple-Upload UI)
-                        $field.trigger('change');
-
                         // Verhindere weiteren Upload
                         return false;
                     } else {
@@ -546,7 +510,7 @@
     function init() {
         console.clear();
         console.log('%c━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'color: #667eea; font-weight: bold');
-        console.log('%c🔐 BIOMETRIC UPLOAD INTEGRATION', 'color: #667eea; font-weight: bold; font-size: 16px');
+        console.log('%c🔐 BIOMETRIC UPLOAD INTEGRATION (STANDALONE)', 'color: #667eea; font-weight: bold; font-size: 16px');
         console.log('%c━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'color: #667eea; font-weight: bold');
 
         if (typeof $ === 'undefined') {
@@ -557,9 +521,12 @@
         console.group('%c⚙️  Konfiguration', 'color: #2196F3; font-weight: bold');
         console.log('Validierungs-Strategie:', CONFIG.VALIDATION_STRATEGY);
         console.log('Server-Endpoint:', CONFIG.SERVER_ENDPOINT);
-        console.log('Gesichtserkennung:', CONFIG.BIOMETRIC_REQUIREMENTS.enableFaceDetection);
         console.log('Server-Validierung:', CONFIG.BIOMETRIC_REQUIREMENTS.enableServerValidation);
+        console.log('Gesichtserkennung:', CONFIG.BIOMETRIC_REQUIREMENTS.enableFaceDetection);
         console.log('Auto-Remove Invalid:', CONFIG.AUTO_REMOVE_INVALID);
+        console.log('');
+        console.log('⚠️ WICHTIG: Verwendet KEINE Formcycle-internen APIs!');
+        console.log('⚠️ Funktioniert mit Standard HTML5 File-Inputs!');
         console.groupEnd();
 
         // Setup Validierung
