@@ -8,7 +8,7 @@
  * INTEGRATION:
  * 1. Inkludiere biometric-validator.js
  * 2. Inkludiere diese Datei
- * 3. Konfiguriere Upload-Felder mit CSS-Klasse "biometric-upload"
+ * 3. Alle Upload-Felder werden automatisch validiert (siehe VALIDATION_STRATEGY)
  * 4. Profit!
  *
  * Features:
@@ -35,7 +35,7 @@
         // 'all' = Alle Upload-Felder
         // 'biometric-upload' = Nur Felder mit CSS-Klasse "biometric-upload"
         // 'specific' = Nur spezifische Feld-IDs (siehe SPECIFIC_FIELDS)
-        VALIDATION_STRATEGY: 'biometric-upload',
+        VALIDATION_STRATEGY: 'all',
 
         SPECIFIC_FIELDS: ['xi-upl-passport-photo'],
 

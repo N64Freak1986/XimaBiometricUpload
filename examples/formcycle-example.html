@@ -171,10 +171,10 @@
                         id="xi-upl-passport-photo"
                         name="passport_photo"
                         accept="image/jpeg,image/jpg,image/png"
-                        class="biometric-upload"
                         required
                         multiple
                     >
+                    <!-- Hinweis: Keine CSS-Klasse nötig! Alle Upload-Felder werden automatisch biometrisch validiert -->
 
                     <!-- Multiple-Upload UI wird hier injiziert -->
                     <!-- Biometric-Validation UI wird hier injiziert -->
@@ -253,7 +253,7 @@
             console.log('%c━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'color: #667eea; font-weight: bold');
             console.log('✅ Demo-Seite geladen');
             console.log('📋 Upload-Feld mit ID:', 'xi-upl-passport-photo');
-            console.log('🔧 CSS-Klasse:', 'biometric-upload');
+            console.log('🔧 Modus: ALLE Upload-Felder werden automatisch validiert (VALIDATION_STRATEGY: "all")');
             console.log('');
             console.log('Debug-Commands:');
             console.log('  multiUploadDebug.testGetUpload() - Test Upload-System');

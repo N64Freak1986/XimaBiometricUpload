@@ -74,24 +74,32 @@ Diese Lösung erweitert das XIMA Formcycle Upload-System um biometrische Validie
 
 ### Client-Integration in Formcycle
 
+```html
+<!-- 1. JavaScript-Dateien einbinden -->
+<script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.12/dist/face-api.min.js"></script>
+<script src="/path/to/biometric-validator.js"></script>
+<script src="/path/to/formcycle-integration.js"></script>
+
+<!-- 2. Upload-Feld erstellen - ALLE Upload-Felder werden automatisch validiert! -->
+<input type="file" accept="image/jpeg,image/png">
+```
+
+**Das war's!** Die biometrische Validierung läuft jetzt automatisch für **alle** Upload-Felder.
+
+### Nur bestimmte Felder validieren?
+
+Ändern Sie in `formcycle-integration.js`:
+
 ```javascript
-// In Ihrem bestehenden Upload-Code nach der Dateiauswahl:
-import { BiometricValidator } from './biometric-validator.js';
+const CONFIG = {
+    VALIDATION_STRATEGY: 'biometric-upload',  // Statt 'all'
+    ...
+};
+```
 
-const validator = new BiometricValidator({
-    minWidth: 1200,
-    minHeight: 900,
-    maxFileSize: 500 * 1024, // 500 KB
-    serverEndpoint: 'https://your-api.com/validate-biometric'
-});
-
-// Validierung vor Upload
-const result = await validator.validateImage(file);
-if (!result.valid) {
-    alert('Bild erfüllt nicht die biometrischen Anforderungen:\n' +
-          result.errors.join('\n'));
-    return;
-}
+Dann nur Felder mit CSS-Klasse `biometric-upload` markieren:
+```html
+<input type="file" class="biometric-upload">
 ```
 
 ### Server Setup
