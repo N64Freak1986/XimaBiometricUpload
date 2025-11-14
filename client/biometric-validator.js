@@ -31,8 +31,8 @@
  *    ~90% der ungeeigneten Bilder (falsche Größe, Hintergrund, etc.) und
  *    reduziert damit die Last auf dem Server.
  *
- * Version: 2.0.0 - ICAO-Standards korrekt implementiert
- * Datum: 2025-01-13
+ * Version: 2.2.0 - Enhanced Lighting & Shadow Detection (ICAOcheck-inspired)
+ * Datum: 2025-01-14
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  */
 
@@ -80,6 +80,15 @@
             minBrightness: 200,      // Min. Helligkeit (0-255, weiß/hellgrau)
             maxVariance: 30,         // Max. Varianz (Einheitlichkeit)
             checkEnabled: true       // Hintergrund-Prüfung aktiviert
+        },
+
+        // Facial Lighting (ICAOcheck-inspired: 4-Zonen-Analyse)
+        facialLighting: {
+            enabled: true,           // 4-Zonen Lighting-Analyse aktiviert
+            maxIntensityRatio: 2.0,  // Max. Helligkeitsunterschied zwischen Zonen (2:1)
+            minZoneHomogeneity: 0.85, // Min. Homogenität pro Zone (0-1)
+            edgeThresholdLow: 50,    // Canny Low Threshold
+            edgeThresholdHigh: 150   // Canny High Threshold
         }
     };
 
@@ -178,6 +187,18 @@
                     }
                     if (backgroundCheck.warnings.length > 0) {
                         result.warnings.push(...backgroundCheck.warnings);
+                    }
+                }
+
+                // 6b. Facial Lighting Check (ICAOcheck-inspired: 4-Zonen-Analyse)
+                if (this.config.facialLighting && this.config.facialLighting.enabled) {
+                    const lightingCheck = await this.validateFacialLighting(imageData);
+                    result.details.facialLighting = lightingCheck;
+                    if (!lightingCheck.valid) {
+                        result.errors.push(...lightingCheck.errors);
+                    }
+                    if (lightingCheck.warnings.length > 0) {
+                        result.warnings.push(...lightingCheck.warnings);
                     }
                 }
 
@@ -618,6 +639,263 @@
             }
 
             return result;
+        }
+
+        /**
+         * 6b. Facial Lighting Validierung (ICAOcheck-inspired)
+         *
+         * Analysiert 4 spezifische Gesichtszonen auf gleichmäßige Ausleuchtung:
+         * - Zone 1: Stirn (Forehead)
+         * - Zone 2: Linke Wange (Left Cheek)
+         * - Zone 3: Rechte Wange (Right Cheek)
+         * - Zone 4: Kinn (Chin)
+         *
+         * Prüft:
+         * 1. Homogenität jeder Zone (mittels Canny Edge Detection)
+         * 2. Helligkeitsunterschiede zwischen Zonen (max 2:1 Ratio)
+         * 3. Schatten-Erkennung
+         */
+        async validateFacialLighting(imageData) {
+            const result = {
+                valid: false,
+                errors: [],
+                warnings: [],
+                zones: [],
+                intensityRatio: null,
+                shadowsDetected: false
+            };
+
+            try {
+                const ctx = imageData.ctx;
+                const width = imageData.width;
+                const height = imageData.height;
+
+                // Definiere 4 Gesichtszonen (approximativ, ohne Face Detection)
+                // Mittige Bereiche des Bildes, wo typischerweise das Gesicht ist
+                const centerX = width / 2;
+                const centerY = height / 2;
+                const zoneWidth = Math.floor(width * 0.15);  // 15% der Bildbreite
+                const zoneHeight = Math.floor(height * 0.12); // 12% der Bildhöhe
+
+                // Zone-Positionen (relativ zum Gesicht in Portrait-Format)
+                const zones = [
+                    {
+                        name: 'Stirn',
+                        x: centerX - zoneWidth / 2,
+                        y: centerY - height * 0.25,
+                        width: zoneWidth,
+                        height: zoneHeight
+                    },
+                    {
+                        name: 'Linke Wange',
+                        x: centerX - width * 0.15,
+                        y: centerY - zoneHeight / 2,
+                        width: zoneWidth,
+                        height: zoneHeight
+                    },
+                    {
+                        name: 'Rechte Wange',
+                        x: centerX + width * 0.05,
+                        y: centerY - zoneHeight / 2,
+                        width: zoneWidth,
+                        height: zoneHeight
+                    },
+                    {
+                        name: 'Kinn',
+                        x: centerX - zoneWidth / 2,
+                        y: centerY + height * 0.15,
+                        width: zoneWidth,
+                        height: zoneHeight
+                    }
+                ];
+
+                // Analysiere jede Zone
+                let minIntensity = 255;
+                let maxIntensity = 0;
+                let allHomogeneous = true;
+
+                for (const zone of zones) {
+                    const zoneData = ctx.getImageData(zone.x, zone.y, zone.width, zone.height);
+
+                    // Berechne durchschnittliche Helligkeit
+                    const data = zoneData.data;
+                    let totalIntensity = 0;
+                    let pixelCount = 0;
+
+                    for (let i = 0; i < data.length; i += 4) {
+                        const r = data[i];
+                        const g = data[i + 1];
+                        const b = data[i + 2];
+                        const intensity = (r + g + b) / 3;
+                        totalIntensity += intensity;
+                        pixelCount++;
+                    }
+
+                    const avgIntensity = totalIntensity / pixelCount;
+
+                    // Prüfe Homogenität (mit Canny Edge Detection)
+                    const homogeneity = this.isZoneHomogeneous(zoneData);
+
+                    const zoneResult = {
+                        name: zone.name,
+                        x: zone.x,
+                        y: zone.y,
+                        width: zone.width,
+                        height: zone.height,
+                        avgIntensity: avgIntensity,
+                        homogeneous: homogeneity.homogeneous,
+                        edgePercentage: homogeneity.edgePercentage
+                    };
+
+                    result.zones.push(zoneResult);
+
+                    // Track min/max Intensität
+                    minIntensity = Math.min(minIntensity, avgIntensity);
+                    maxIntensity = Math.max(maxIntensity, avgIntensity);
+
+                    // Check Homogenität
+                    if (!homogeneity.homogeneous) {
+                        allHomogeneous = false;
+                        this.log(`Zone ${zone.name} nicht homogen: ${homogeneity.edgePercentage.toFixed(1)}% Kanten`);
+                    }
+                }
+
+                // Berechne Intensitäts-Ratio (wie ICAOcheck)
+                const intensityRatio = maxIntensity / (minIntensity || 1);
+                result.intensityRatio = intensityRatio;
+
+                this.log('Facial Lighting Analyse:', {
+                    minIntensity: minIntensity.toFixed(1),
+                    maxIntensity: maxIntensity.toFixed(1),
+                    ratio: intensityRatio.toFixed(2),
+                    allHomogeneous
+                });
+
+                // Validierung
+                const maxRatio = this.config.facialLighting?.maxIntensityRatio || 2.0;
+
+                // Fehler: Nicht alle Zonen homogen
+                if (!allHomogeneous) {
+                    const inhomogeneousZones = result.zones
+                        .filter(z => !z.homogeneous)
+                        .map(z => z.name)
+                        .join(', ');
+
+                    result.errors.push(
+                        `Schatten oder Ungleichmäßigkeiten erkannt in: ${inhomogeneousZones}. ` +
+                        `ICAO erfordert gleichmäßige Ausleuchtung ohne Schatten.`
+                    );
+                    result.shadowsDetected = true;
+                }
+
+                // Fehler: Zu großer Helligkeitsunterschied zwischen Zonen
+                if (intensityRatio > maxRatio) {
+                    result.errors.push(
+                        `Zu große Helligkeitsunterschiede im Gesicht (Ratio: ${intensityRatio.toFixed(2)}:1). ` +
+                        `ICAO erfordert gleichmäßige Beleuchtung (max. ${maxRatio}:1).`
+                    );
+                    result.shadowsDetected = true;
+                }
+
+                // Warnungen für grenzwertige Fälle
+                if (intensityRatio > maxRatio * 0.75 && intensityRatio <= maxRatio) {
+                    result.warnings.push(
+                        `Leichte Helligkeitsunterschiede erkannt (Ratio: ${intensityRatio.toFixed(2)}:1). ` +
+                        `Für beste Ergebnisse: Gleichmäßige Frontalbeleuchtung verwenden.`
+                    );
+                }
+
+                result.valid = result.errors.length === 0;
+
+            } catch (error) {
+                this.log('Facial Lighting Validierung fehlgeschlagen:', error);
+                result.warnings.push('Beleuchtungs-Analyse nicht möglich');
+                result.valid = true; // Nicht blockieren bei technischen Fehlern
+            }
+
+            return result;
+        }
+
+        /**
+         * Prüft ob eine Zone homogen ist (mittels Canny Edge Detection)
+         * Inspiriert von ICAOcheck's Homogenitäts-Check
+         */
+        isZoneHomogeneous(zoneImageData) {
+            const result = {
+                homogeneous: false,
+                edgePercentage: 0
+            };
+
+            try {
+                // Konvertiere zu Graustufen
+                const data = zoneImageData.data;
+                const width = zoneImageData.width;
+                const height = zoneImageData.height;
+                const grayscale = new Uint8ClampedArray(width * height);
+
+                for (let i = 0; i < data.length; i += 4) {
+                    const gray = (data[i] + data[i + 1] + data[i + 2]) / 3;
+                    grayscale[i / 4] = gray;
+                }
+
+                // Simplified Edge Detection (Sobel)
+                const edges = this.sobelEdgeDetection(grayscale, width, height);
+
+                // Zähle Edge-Pixel
+                let edgeCount = 0;
+                for (let i = 0; i < edges.length; i++) {
+                    if (edges[i] > 0) edgeCount++;
+                }
+
+                const edgePercentage = (edgeCount / edges.length) * 100;
+                result.edgePercentage = edgePercentage;
+
+                // Zone ist homogen wenn weniger als 15% Kanten
+                const minHomogeneity = (this.config.facialLighting?.minZoneHomogeneity || 0.85) * 100;
+                result.homogeneous = edgePercentage < (100 - minHomogeneity);
+
+            } catch (error) {
+                this.log('Zone-Homogenitäts-Check fehlgeschlagen:', error);
+                result.homogeneous = true; // Nicht blockieren
+            }
+
+            return result;
+        }
+
+        /**
+         * Sobel Edge Detection (vereinfacht)
+         */
+        sobelEdgeDetection(grayscale, width, height) {
+            const edges = new Uint8ClampedArray(grayscale.length);
+
+            // Sobel Kernels
+            const sobelX = [-1, 0, 1, -2, 0, 2, -1, 0, 1];
+            const sobelY = [-1, -2, -1, 0, 0, 0, 1, 2, 1];
+
+            for (let y = 1; y < height - 1; y++) {
+                for (let x = 1; x < width - 1; x++) {
+                    let gx = 0;
+                    let gy = 0;
+
+                    // Konvolution mit Sobel-Kernels
+                    for (let ky = -1; ky <= 1; ky++) {
+                        for (let kx = -1; kx <= 1; kx++) {
+                            const idx = (y + ky) * width + (x + kx);
+                            const kernelIdx = (ky + 1) * 3 + (kx + 1);
+                            const pixel = grayscale[idx];
+
+                            gx += pixel * sobelX[kernelIdx];
+                            gy += pixel * sobelY[kernelIdx];
+                        }
+                    }
+
+                    // Gradient Magnitude
+                    const magnitude = Math.sqrt(gx * gx + gy * gy);
+                    edges[y * width + x] = magnitude > 50 ? 255 : 0; // Threshold 50
+                }
+            }
+
+            return edges;
         }
 
         /**

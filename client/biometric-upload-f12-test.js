@@ -2,14 +2,21 @@
 // BIOMETRIC UPLOAD - F12 TEST VERSION
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 //
-// Version: 2.1.0 - Auto-Optimize Feature (optional)
+// Version: 2.2.0 - Enhanced Lighting & Shadow Detection (ICAOcheck-inspired)
 //
 // ⚠️ WICHTIG - GRENZEN DER CLIENT-VALIDIERUNG:
 // Diese Validierung ist ein PRE-FILTER (technische Checks).
 // Sie prüft NICHT: Brillenreflexionen, Gesichtsausdruck, Augen, Haare, etc.
 // → Für vollständige ICAO-Konformität Server-Validierung aktivieren!
 //
-// 🆕 NEU: Auto-Optimize Feature (standardmäßig deaktiviert)
+// 🆕 NEU in v2.2: Enhanced Lighting & Shadow Detection
+// - 4-Zonen Facial Lighting Analyse (Stirn, Wangen, Kinn)
+// - Sobel Edge Detection für Schatten-Erkennung
+// - Homogenitäts-Checks pro Zone
+// - Helligkeitsunterschiede zwischen Zonen (max 2:1 Ratio)
+// - Inspiriert von ICAOcheck, aber ohne AI/ML
+//
+// Auto-Optimize Feature (standardmäßig deaktiviert)
 // Aktivieren mit: CONFIG.AUTO_OPTIMIZE.enabled = true
 // - Verkleinert automatisch zu große Bilder
 // - Reduziert Dateigröße durch JPEG-Qualität-Anpassung
@@ -31,7 +38,7 @@
 
 console.clear();
 console.log('%c━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'color: #667eea; font-weight: bold');
-console.log('%c⚡ BIOMETRIC UPLOAD - F12 TEST MODE (v2.1)', 'color: #667eea; font-weight: bold; font-size: 16px');
+console.log('%c⚡ BIOMETRIC UPLOAD - F12 TEST MODE (v2.2)', 'color: #667eea; font-weight: bold; font-size: 16px');
 console.log('%c━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'color: #667eea; font-weight: bold');
 console.log('📋 Lade Module...');
 

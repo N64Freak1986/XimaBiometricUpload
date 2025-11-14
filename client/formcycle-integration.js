@@ -29,8 +29,8 @@
  * - ✅ JPEG-Qualität-Anpassung für kleinere Dateien (optional)
  * - ⚠️ Client = Pre-Filter (~90% Fehler), Server = Vollständige ICAO-Prüfung
  *
- * Version: 2.1.0 - Auto-Optimize Feature (optional)
- * Datum: 2025-01-13
+ * Version: 2.2.0 - Enhanced Lighting & Shadow Detection (ICAOcheck-inspired)
+ * Datum: 2025-01-14
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  */
 
@@ -69,6 +69,13 @@
                 minBrightness: 200,      // ICAO: Hell (weiß/hellgrau)
                 maxVariance: 30,         // ICAO: Einheitlich
                 checkEnabled: true       // Hintergrund-Prüfung aktiv
+            },
+            facialLighting: {
+                enabled: true,           // 4-Zonen Lighting-Analyse aktiviert
+                maxIntensityRatio: 2.0,  // Max. Helligkeitsunterschied zwischen Zonen
+                minZoneHomogeneity: 0.85, // Min. Homogenität pro Zone (0-1)
+                edgeThresholdLow: 50,    // Canny Low Threshold
+                edgeThresholdHigh: 150   // Canny High Threshold
             },
             debug: true
         },
