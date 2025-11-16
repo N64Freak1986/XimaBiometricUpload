@@ -31,7 +31,7 @@
  *    ~90% der ungeeigneten Bilder (falsche Größe, Hintergrund, etc.) und
  *    reduziert damit die Last auf dem Server.
  *
- * Version: 2.2.0 - Enhanced Lighting & Shadow Detection (ICAOcheck-inspired)
+ * Version: 2.3.0 - Mobile & Smartphone Optimizations
  * Datum: 2025-01-14
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  */
@@ -254,9 +254,20 @@
             const result = {
                 valid: false,
                 errors: [],
+                warnings: [],
                 mimeType: file.type,
                 extension: file.name.split('.').pop().toLowerCase()
             };
+
+            // HEIC/HEIF Format (iPhone) - Browser unterstützt das oft nicht
+            if (result.extension === 'heic' || result.extension === 'heif') {
+                result.errors.push(
+                    `HEIC/HEIF Format wird nicht unterstützt. ` +
+                    `Bitte verwenden Sie JPEG/PNG. ` +
+                    `iPhone-Tipp: Einstellungen → Kamera → Formate → "Maximale Kompatibilität" aktivieren.`
+                );
+                return result;
+            }
 
             if (!this.config.allowedFormats.includes(file.type)) {
                 result.errors.push(
@@ -299,33 +310,165 @@
         }
 
         /**
-         * 3. Bild laden
+         * 3. Bild laden (mit EXIF-Rotation Support für Smartphone-Fotos)
          */
-        loadImage(file) {
-            return new Promise((resolve, reject) => {
-                const img = new Image();
-                const canvas = document.createElement('canvas');
-                const ctx = canvas.getContext('2d');
+        async loadImage(file) {
+            return new Promise(async (resolve, reject) => {
+                try {
+                    // Lese EXIF-Orientation (wichtig für Smartphone-Fotos!)
+                    const orientation = await this.getExifOrientation(file);
+                    this.log('EXIF Orientation:', orientation);
 
-                img.onload = () => {
-                    canvas.width = img.width;
-                    canvas.height = img.height;
-                    ctx.drawImage(img, 0, 0);
+                    const img = new Image();
 
-                    resolve({
-                        img: img,
-                        canvas: canvas,
-                        ctx: ctx,
-                        width: img.width,
-                        height: img.height
-                    });
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        const ctx = canvas.getContext('2d');
+
+                        let width = img.width;
+                        let height = img.height;
+
+                        // EXIF-Rotation anwenden
+                        // Orientation 5,6,7,8 = Bild ist gedreht (Portrait-Modus)
+                        if (orientation >= 5 && orientation <= 8) {
+                            // Breite und Höhe vertauschen für 90°/270° Rotation
+                            canvas.width = height;
+                            canvas.height = width;
+                        } else {
+                            canvas.width = width;
+                            canvas.height = height;
+                        }
+
+                        // Transformationen basierend auf EXIF-Orientation
+                        switch (orientation) {
+                            case 2:
+                                // Horizontal flip
+                                ctx.transform(-1, 0, 0, 1, width, 0);
+                                break;
+                            case 3:
+                                // 180° rotate
+                                ctx.transform(-1, 0, 0, -1, width, height);
+                                break;
+                            case 4:
+                                // Vertical flip
+                                ctx.transform(1, 0, 0, -1, 0, height);
+                                break;
+                            case 5:
+                                // Vertical flip + 90° rotate right
+                                ctx.transform(0, 1, 1, 0, 0, 0);
+                                break;
+                            case 6:
+                                // 90° rotate right (häufigster Fall bei Portrait-Fotos!)
+                                ctx.transform(0, 1, -1, 0, height, 0);
+                                break;
+                            case 7:
+                                // Horizontal flip + 90° rotate right
+                                ctx.transform(0, -1, -1, 0, height, width);
+                                break;
+                            case 8:
+                                // 90° rotate left
+                                ctx.transform(0, -1, 1, 0, 0, width);
+                                break;
+                            default:
+                                // 1 = Normal, keine Transformation
+                                break;
+                        }
+
+                        ctx.drawImage(img, 0, 0);
+
+                        // Korrekte Dimensionen nach Rotation
+                        const finalWidth = canvas.width;
+                        const finalHeight = canvas.height;
+
+                        this.log(`Bild geladen: ${img.width}×${img.height} → ${finalWidth}×${finalHeight} (EXIF: ${orientation})`);
+
+                        resolve({
+                            img: img,
+                            canvas: canvas,
+                            ctx: ctx,
+                            width: finalWidth,
+                            height: finalHeight,
+                            exifOrientation: orientation,
+                            originalWidth: img.width,
+                            originalHeight: img.height
+                        });
+                    };
+
+                    img.onerror = () => {
+                        reject(new Error('Bild konnte nicht geladen werden'));
+                    };
+
+                    img.src = URL.createObjectURL(file);
+
+                } catch (error) {
+                    reject(error);
+                }
+            });
+        }
+
+        /**
+         * EXIF-Orientation aus Bild-Datei lesen
+         * Wichtig für Smartphone-Fotos, die im Portrait-Modus aufgenommen wurden!
+         */
+        async getExifOrientation(file) {
+            return new Promise((resolve) => {
+                const reader = new FileReader();
+
+                reader.onload = (e) => {
+                    const view = new DataView(e.target.result);
+
+                    if (view.getUint16(0, false) !== 0xFFD8) {
+                        // Kein JPEG
+                        resolve(1);
+                        return;
+                    }
+
+                    const length = view.byteLength;
+                    let offset = 2;
+
+                    while (offset < length) {
+                        if (view.getUint16(offset + 2, false) <= 8) {
+                            resolve(1);
+                            return;
+                        }
+
+                        const marker = view.getUint16(offset, false);
+                        offset += 2;
+
+                        if (marker === 0xFFE1) {
+                            // EXIF marker gefunden
+                            if (view.getUint32(offset += 2, false) !== 0x45786966) {
+                                resolve(1);
+                                return;
+                            }
+
+                            const little = view.getUint16(offset += 6, false) === 0x4949;
+                            offset += view.getUint32(offset + 4, little);
+                            const tags = view.getUint16(offset, little);
+                            offset += 2;
+
+                            for (let i = 0; i < tags; i++) {
+                                if (view.getUint16(offset + (i * 12), little) === 0x0112) {
+                                    // Orientation tag gefunden
+                                    const orientation = view.getUint16(offset + (i * 12) + 8, little);
+                                    resolve(orientation);
+                                    return;
+                                }
+                            }
+                        } else if ((marker & 0xFF00) !== 0xFF00) {
+                            break;
+                        } else {
+                            offset += view.getUint16(offset, false);
+                        }
+                    }
+
+                    resolve(1); // Default: keine Rotation
                 };
 
-                img.onerror = () => {
-                    reject(new Error('Bild konnte nicht geladen werden'));
-                };
+                reader.onerror = () => resolve(1);
 
-                img.src = URL.createObjectURL(file);
+                // Lese nur die ersten 64KB (EXIF ist immer am Anfang)
+                reader.readAsArrayBuffer(file.slice(0, 64 * 1024));
             });
         }
 

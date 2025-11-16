@@ -29,7 +29,7 @@
  * - ✅ JPEG-Qualität-Anpassung für kleinere Dateien (optional)
  * - ⚠️ Client = Pre-Filter (~90% Fehler), Server = Vollständige ICAO-Prüfung
  *
- * Version: 2.2.0 - Enhanced Lighting & Shadow Detection (ICAOcheck-inspired)
+ * Version: 2.3.0 - Mobile & Smartphone Optimizations
  * Datum: 2025-01-14
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  */
@@ -86,9 +86,9 @@
         AUTO_REMOVE_INVALID: true, // Ungültige Bilder automatisch entfernen
 
         // Automatische Bild-Optimierung (UX-Feature)
-        // ⚠️ Standardmäßig DEAKTIVIERT für strenge ICAO-Kontrolle
+        // ✅ Standardmäßig AKTIVIERT für bessere Mobile UX (v2.3.0+)
         AUTO_OPTIMIZE: {
-            enabled: false,              // Optimierung aktivieren/deaktivieren
+            enabled: true,               // ✅ AKTIVIERT: Smartphone-Fotos automatisch optimieren
             resize: true,                // Zu große Bilder verkleinern
             maxWidth: 1050,              // Ziel-Breite (ICAO)
             maxHeight: 1350,             // Ziel-Höhe (ICAO)
@@ -771,6 +771,13 @@
 
             // Markiere Feld als setup (WICHTIG: Verhindert infinite loop!)
             $field.data('biometric-setup', true);
+
+            // Mobile-Optimierungen: HTML-Attribute für bessere Smartphone-Erfahrung
+            $field.attr({
+                'accept': 'image/jpeg,image/jpg,image/png',  // Nur unterstützte Formate
+                'capture': 'environment'                      // Rückkamera bevorzugen (besser als Selfie)
+            });
+            log('📱 Mobile-Hints gesetzt:', fieldId, '(capture=environment, accept=image/*)');
 
             // Erstelle UI
             const ui = createValidationUI($field);
