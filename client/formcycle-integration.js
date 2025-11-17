@@ -29,7 +29,7 @@
  * - ✅ JPEG-Qualität-Anpassung für kleinere Dateien (optional)
  * - ⚠️ Client = Pre-Filter (~90% Fehler), Server = Vollständige ICAO-Prüfung
  *
- * Version: 2.4.0 - Quality Tolerance with Checkbox Override
+ * Version: 2.4.1 - Bugfix: Checkbox selector & upload clearing
  * Datum: 2025-01-14
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  */
@@ -458,7 +458,7 @@
             display: 'none'  // Nur bei soft errors anzeigen
         }).html(`
             <label style="display:flex;align-items:center;cursor:pointer;font-size:13px">
-                <input type="checkbox" id="cb1" class="biometric-quality-override" style="margin-right:10px;width:18px;height:18px;cursor:pointer">
+                <input type="checkbox" data-name="cb1" class="biometric-quality-override" style="margin-right:10px;width:18px;height:18px;cursor:pointer">
                 <div>
                     <strong>⚠️ Trotz Qualitätsmängeln verwenden</strong><br>
                     <span style="font-size:11px;color:#856404">
@@ -496,7 +496,7 @@
         return {
             $ui: $ui,
             $checkboxContainer: $checkboxContainer,
-            $checkbox: $checkboxContainer.find('#cb1'),
+            $checkbox: $checkboxContainer.find('[data-name="cb1"]'),
             $status: $status,
             $preview: $preview
         };
@@ -774,7 +774,26 @@
 
         $field[0].files = dt.files;
 
-        log('🗑️ Ungültige Datei entfernt:', fileToRemove.name);
+        // WICHTIG: Leere auch den xm-upload-wrapper (Formcycle-spezifisch)
+        const $wrapper = $field.closest('.xm-upload-wrapper');
+        if ($wrapper.length > 0) {
+            log('🗑️ Leere xm-upload-wrapper');
+
+            // Entferne alle visuellen Upload-Elemente
+            $wrapper.find('.xm-upload-file').remove();
+            $wrapper.find('.xm-upload-preview').remove();
+            $wrapper.find('.upload-item').remove();
+
+            // Reset des Wrappers
+            $wrapper.removeClass('has-file');
+
+            // Wenn keine Dateien mehr übrig, zeige Upload-Hinweis wieder
+            if (dt.files.length === 0) {
+                $wrapper.find('.xm-upload-placeholder').show();
+            }
+        }
+
+        log('🗑️ Ungültige Datei entfernt:', fileToRemove.name, `(${dt.files.length} Dateien übrig)`);
     }
 
     // ============================================
