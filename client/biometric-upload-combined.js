@@ -1300,7 +1300,7 @@
  * - ✅ JPEG-Qualität-Anpassung für kleinere Dateien (optional)
  * - ⚠️ Client = Pre-Filter (~90% Fehler), Server = Vollständige ICAO-Prüfung
  *
- * Version: 2.4.1 - Bugfix: Checkbox selector & upload clearing
+ * Version: 2.4.2 - Fix: Remove correct file after optimization
  * Datum: 2025-01-14
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  */
@@ -1950,6 +1950,9 @@
             const validator = getValidator();
             const result = await validator.validateImage(fileToValidate);
 
+            // Speichere welches File tatsächlich validiert wurde (wichtig für removeInvalidFile!)
+            result.validatedFile = fileToValidate;
+
             // Update Steps basierend auf Result
             if (CONFIG.SHOW_VALIDATION_STEPS) {
                 // Format
@@ -2168,9 +2171,12 @@
                         if (hasHardErrors) {
                             log('❌ Hard Errors erkannt → Datei wird entfernt');
 
+                            // WICHTIG: Verwende das validierte File (könnte optimiert sein!)
+                            const fileToRemove = result.validatedFile || file;
+
                             if (CONFIG.AUTO_REMOVE_INVALID) {
                                 // Entferne automatisch
-                                removeInvalidFile($field, file);
+                                removeInvalidFile($field, fileToRemove);
                             } else {
                                 // Frage User
                                 const shouldRemove = confirm(
@@ -2178,7 +2184,7 @@
                                 );
 
                                 if (shouldRemove) {
-                                    removeInvalidFile($field, file);
+                                    removeInvalidFile($field, fileToRemove);
                                 }
                             }
 

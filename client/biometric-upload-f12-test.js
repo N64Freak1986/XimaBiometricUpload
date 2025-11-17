@@ -2,7 +2,7 @@
 // BIOMETRIC UPLOAD - F12 TEST VERSION
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 //
-// Version: 2.4.1 - Bugfix: Checkbox selector & upload clearing
+// Version: 2.4.2 - Fix: Remove correct file after optimization
 //
 // ⚠️ WICHTIG - GRENZEN DER CLIENT-VALIDIERUNG:
 // Diese Validierung ist ein PRE-FILTER (technische Checks).
@@ -43,7 +43,7 @@
 
 console.clear();
 console.log('%c━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'color: #667eea; font-weight: bold');
-console.log('%c⚡ BIOMETRIC UPLOAD - F12 TEST MODE (v2.4.1)', 'color: #667eea; font-weight: bold; font-size: 16px');
+console.log('%c⚡ BIOMETRIC UPLOAD - F12 TEST MODE (v2.4.2)', 'color: #667eea; font-weight: bold; font-size: 16px');
 console.log('%c━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'color: #667eea; font-weight: bold');
 console.log('📋 Lade Module...');
 
