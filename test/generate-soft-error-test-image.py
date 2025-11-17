@@ -122,11 +122,12 @@ draw.arc(
     width=3
 )
 
-# Speichern als JPEG mit Qualität 85%
+# Speichern als JPEG mit Qualität 95% (für > 50 KB Dateigröße)
 output_dir = os.path.dirname(os.path.abspath(__file__))
 output_path = os.path.join(output_dir, 'test-soft-errors-only.jpg')
 
-img.save(output_path, 'JPEG', quality=85, optimize=True)
+# Höhere Qualität für > 50 KB Minimum
+img.save(output_path, 'JPEG', quality=95, optimize=False)
 
 # File info
 file_size = os.path.getsize(output_path)
