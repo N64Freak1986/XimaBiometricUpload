@@ -2,7 +2,7 @@
 // BIOMETRIC UPLOAD - F12 TEST VERSION
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 //
-// Version: 2.4.2 - Fix: Remove correct file after optimization
+// Version: 2.4.3 - Fix: Visual filename cleanup + checkbox transmission logic
 //
 // ⚠️ WICHTIG - GRENZEN DER CLIENT-VALIDIERUNG:
 // Diese Validierung ist ein PRE-FILTER (technische Checks).
@@ -14,7 +14,8 @@
 // - ✅ Hard Errors (Format, Größe, Dimensionen) → Bild wird IMMER entfernt
 // - ✅ Soft Errors (Schatten, Beleuchtung, Hintergrund) → Checkbox-Override möglich!
 // - ✅ Checkbox cb1 "Trotz Qualitätsmängeln verwenden" für Soft Errors
-// - ✅ Bild bleibt bei Soft Errors im Upload, User kann selbst entscheiden
+// - ✅ Checkbox initial versteckt, nur bei Soft Errors sichtbar
+// - ✅ Bild wird nur übertragen wenn cb1 abgehackt ist (v2.4.3)
 //
 // v2.3 Features (bereits enthalten):
 // - EXIF-Rotation Support (Portrait-Fotos korrekt gedreht)
@@ -43,7 +44,7 @@
 
 console.clear();
 console.log('%c━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'color: #667eea; font-weight: bold');
-console.log('%c⚡ BIOMETRIC UPLOAD - F12 TEST MODE (v2.4.2)', 'color: #667eea; font-weight: bold; font-size: 16px');
+console.log('%c⚡ BIOMETRIC UPLOAD - F12 TEST MODE (v2.4.3)', 'color: #667eea; font-weight: bold; font-size: 16px');
 console.log('%c━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'color: #667eea; font-weight: bold');
 console.log('📋 Lade Module...');
 
@@ -114,8 +115,8 @@ function loadBiometricModules() {
  *    ~90% der ungeeigneten Bilder (falsche Größe, Hintergrund, etc.) und
  *    reduziert damit die Last auf dem Server.
  *
- * Version: 2.0.0 - ICAO-Standards korrekt implementiert
- * Datum: 2025-01-13
+ * Version: 2.4.0 - Quality Tolerance with Checkbox Override
+ * Datum: 2025-01-14
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  */
 
@@ -163,6 +164,15 @@ function loadBiometricModules() {
             minBrightness: 200,      // Min. Helligkeit (0-255, weiß/hellgrau)
             maxVariance: 30,         // Max. Varianz (Einheitlichkeit)
             checkEnabled: true       // Hintergrund-Prüfung aktiviert
+        },
+
+        // Facial Lighting (ICAOcheck-inspired: 4-Zonen-Analyse)
+        facialLighting: {
+            enabled: true,           // 4-Zonen Lighting-Analyse aktiviert
+            maxIntensityRatio: 2.0,  // Max. Helligkeitsunterschied zwischen Zonen (2:1)
+            minZoneHomogeneity: 0.85, // Min. Homogenität pro Zone (0-1)
+            edgeThresholdLow: 50,    // Canny Low Threshold
+            edgeThresholdHigh: 150   // Canny High Threshold
         }
     };
 
@@ -201,66 +211,87 @@ function loadBiometricModules() {
 
             const result = {
                 valid: false,
-                errors: [],
+                errors: [],           // Alle Fehler (Kompatibilität)
+                hardErrors: [],       // Technisch kritische Fehler (immer ablehnen)
+                softErrors: [],       // Qualitätsmängel (mit Checkbox akzeptierbar)
                 warnings: [],
                 details: {},
                 timestamp: new Date().toISOString()
             };
 
             try {
-                // 1. Format-Check
+                // 1. Format-Check (HARD ERROR)
                 const formatCheck = this.validateFormat(file);
                 result.details.format = formatCheck;
                 if (!formatCheck.valid) {
+                    result.hardErrors.push(...formatCheck.errors);
                     result.errors.push(...formatCheck.errors);
                 }
 
-                // 2. Dateigröße-Check
+                // 2. Dateigröße-Check (HARD ERROR)
                 const sizeCheck = this.validateFileSize(file);
                 result.details.fileSize = sizeCheck;
                 if (!sizeCheck.valid) {
+                    result.hardErrors.push(...sizeCheck.errors);
                     result.errors.push(...sizeCheck.errors);
                 }
 
-                // 3. Bild laden und Dimensionen prüfen
+                // 3. Bild laden und Dimensionen prüfen (HARD ERROR)
                 const imageData = await this.loadImage(file);
                 result.details.image = imageData;
 
                 const dimensionCheck = this.validateDimensions(imageData);
                 result.details.dimensions = dimensionCheck;
                 if (!dimensionCheck.valid) {
+                    result.hardErrors.push(...dimensionCheck.errors);
                     result.errors.push(...dimensionCheck.errors);
                 }
                 if (dimensionCheck.warnings.length > 0) {
                     result.warnings.push(...dimensionCheck.warnings);
                 }
 
-                // 4. Seitenverhältnis-Check
+                // 4. Seitenverhältnis-Check (HARD ERROR)
                 const aspectCheck = this.validateAspectRatio(imageData);
                 result.details.aspectRatio = aspectCheck;
                 if (!aspectCheck.valid) {
+                    result.hardErrors.push(...aspectCheck.errors);
                     result.errors.push(...aspectCheck.errors);
                 }
 
-                // 5. Bildqualität-Check
+                // 5. Bildqualität-Check (SOFT ERROR - Qualitätsmangel)
                 const qualityCheck = await this.validateQuality(imageData);
                 result.details.quality = qualityCheck;
                 if (!qualityCheck.valid) {
+                    result.softErrors.push(...qualityCheck.errors);
                     result.errors.push(...qualityCheck.errors);
                 }
                 if (qualityCheck.warnings.length > 0) {
                     result.warnings.push(...qualityCheck.warnings);
                 }
 
-                // 6. Hintergrund-Check (ICAO: Schlicht, einheitlich, hell)
+                // 6. Hintergrund-Check (SOFT ERROR - mit Checkbox akzeptierbar)
                 if (this.config.background && this.config.background.checkEnabled) {
                     const backgroundCheck = await this.validateBackground(imageData);
                     result.details.background = backgroundCheck;
                     if (!backgroundCheck.valid) {
+                        result.softErrors.push(...backgroundCheck.errors);
                         result.errors.push(...backgroundCheck.errors);
                     }
                     if (backgroundCheck.warnings.length > 0) {
                         result.warnings.push(...backgroundCheck.warnings);
+                    }
+                }
+
+                // 6b. Facial Lighting Check (SOFT ERROR - mit Checkbox akzeptierbar)
+                if (this.config.facialLighting && this.config.facialLighting.enabled) {
+                    const lightingCheck = await this.validateFacialLighting(imageData);
+                    result.details.facialLighting = lightingCheck;
+                    if (!lightingCheck.valid) {
+                        result.softErrors.push(...lightingCheck.errors);
+                        result.errors.push(...lightingCheck.errors);
+                    }
+                    if (lightingCheck.warnings.length > 0) {
+                        result.warnings.push(...lightingCheck.warnings);
                     }
                 }
 
@@ -271,11 +302,12 @@ function loadBiometricModules() {
                     return result;
                 }
 
-                // 7. Gesichtserkennung (optional, clientseitig)
+                // 7. Gesichtserkennung (SOFT ERROR - optional, mit Checkbox akzeptierbar)
                 if (this.config.enableFaceDetection) {
                     const faceCheck = await this.validateFace(imageData);
                     result.details.face = faceCheck;
                     if (!faceCheck.valid) {
+                        result.softErrors.push(...faceCheck.errors);
                         result.errors.push(...faceCheck.errors);
                     }
                     if (faceCheck.warnings.length > 0) {
@@ -283,11 +315,12 @@ function loadBiometricModules() {
                     }
                 }
 
-                // 8. Server-Validierung (detaillierte Biometrie)
+                // 8. Server-Validierung (HARD ERROR - Server entscheidet)
                 if (this.config.enableServerValidation && this.config.serverEndpoint) {
                     const serverCheck = await this.validateOnServer(file);
                     result.details.server = serverCheck;
                     if (!serverCheck.valid) {
+                        result.hardErrors.push(...serverCheck.errors);
                         result.errors.push(...serverCheck.errors);
                     }
                     if (serverCheck.warnings && serverCheck.warnings.length > 0) {
@@ -316,9 +349,20 @@ function loadBiometricModules() {
             const result = {
                 valid: false,
                 errors: [],
+                warnings: [],
                 mimeType: file.type,
                 extension: file.name.split('.').pop().toLowerCase()
             };
+
+            // HEIC/HEIF Format (iPhone) - Browser unterstützt das oft nicht
+            if (result.extension === 'heic' || result.extension === 'heif') {
+                result.errors.push(
+                    `HEIC/HEIF Format wird nicht unterstützt. ` +
+                    `Bitte verwenden Sie JPEG/PNG. ` +
+                    `iPhone-Tipp: Einstellungen → Kamera → Formate → "Maximale Kompatibilität" aktivieren.`
+                );
+                return result;
+            }
 
             if (!this.config.allowedFormats.includes(file.type)) {
                 result.errors.push(
@@ -361,33 +405,165 @@ function loadBiometricModules() {
         }
 
         /**
-         * 3. Bild laden
+         * 3. Bild laden (mit EXIF-Rotation Support für Smartphone-Fotos)
          */
-        loadImage(file) {
-            return new Promise((resolve, reject) => {
-                const img = new Image();
-                const canvas = document.createElement('canvas');
-                const ctx = canvas.getContext('2d');
+        async loadImage(file) {
+            return new Promise(async (resolve, reject) => {
+                try {
+                    // Lese EXIF-Orientation (wichtig für Smartphone-Fotos!)
+                    const orientation = await this.getExifOrientation(file);
+                    this.log('EXIF Orientation:', orientation);
 
-                img.onload = () => {
-                    canvas.width = img.width;
-                    canvas.height = img.height;
-                    ctx.drawImage(img, 0, 0);
+                    const img = new Image();
 
-                    resolve({
-                        img: img,
-                        canvas: canvas,
-                        ctx: ctx,
-                        width: img.width,
-                        height: img.height
-                    });
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        const ctx = canvas.getContext('2d');
+
+                        let width = img.width;
+                        let height = img.height;
+
+                        // EXIF-Rotation anwenden
+                        // Orientation 5,6,7,8 = Bild ist gedreht (Portrait-Modus)
+                        if (orientation >= 5 && orientation <= 8) {
+                            // Breite und Höhe vertauschen für 90°/270° Rotation
+                            canvas.width = height;
+                            canvas.height = width;
+                        } else {
+                            canvas.width = width;
+                            canvas.height = height;
+                        }
+
+                        // Transformationen basierend auf EXIF-Orientation
+                        switch (orientation) {
+                            case 2:
+                                // Horizontal flip
+                                ctx.transform(-1, 0, 0, 1, width, 0);
+                                break;
+                            case 3:
+                                // 180° rotate
+                                ctx.transform(-1, 0, 0, -1, width, height);
+                                break;
+                            case 4:
+                                // Vertical flip
+                                ctx.transform(1, 0, 0, -1, 0, height);
+                                break;
+                            case 5:
+                                // Vertical flip + 90° rotate right
+                                ctx.transform(0, 1, 1, 0, 0, 0);
+                                break;
+                            case 6:
+                                // 90° rotate right (häufigster Fall bei Portrait-Fotos!)
+                                ctx.transform(0, 1, -1, 0, height, 0);
+                                break;
+                            case 7:
+                                // Horizontal flip + 90° rotate right
+                                ctx.transform(0, -1, -1, 0, height, width);
+                                break;
+                            case 8:
+                                // 90° rotate left
+                                ctx.transform(0, -1, 1, 0, 0, width);
+                                break;
+                            default:
+                                // 1 = Normal, keine Transformation
+                                break;
+                        }
+
+                        ctx.drawImage(img, 0, 0);
+
+                        // Korrekte Dimensionen nach Rotation
+                        const finalWidth = canvas.width;
+                        const finalHeight = canvas.height;
+
+                        this.log(`Bild geladen: ${img.width}×${img.height} → ${finalWidth}×${finalHeight} (EXIF: ${orientation})`);
+
+                        resolve({
+                            img: img,
+                            canvas: canvas,
+                            ctx: ctx,
+                            width: finalWidth,
+                            height: finalHeight,
+                            exifOrientation: orientation,
+                            originalWidth: img.width,
+                            originalHeight: img.height
+                        });
+                    };
+
+                    img.onerror = () => {
+                        reject(new Error('Bild konnte nicht geladen werden'));
+                    };
+
+                    img.src = URL.createObjectURL(file);
+
+                } catch (error) {
+                    reject(error);
+                }
+            });
+        }
+
+        /**
+         * EXIF-Orientation aus Bild-Datei lesen
+         * Wichtig für Smartphone-Fotos, die im Portrait-Modus aufgenommen wurden!
+         */
+        async getExifOrientation(file) {
+            return new Promise((resolve) => {
+                const reader = new FileReader();
+
+                reader.onload = (e) => {
+                    const view = new DataView(e.target.result);
+
+                    if (view.getUint16(0, false) !== 0xFFD8) {
+                        // Kein JPEG
+                        resolve(1);
+                        return;
+                    }
+
+                    const length = view.byteLength;
+                    let offset = 2;
+
+                    while (offset < length) {
+                        if (view.getUint16(offset + 2, false) <= 8) {
+                            resolve(1);
+                            return;
+                        }
+
+                        const marker = view.getUint16(offset, false);
+                        offset += 2;
+
+                        if (marker === 0xFFE1) {
+                            // EXIF marker gefunden
+                            if (view.getUint32(offset += 2, false) !== 0x45786966) {
+                                resolve(1);
+                                return;
+                            }
+
+                            const little = view.getUint16(offset += 6, false) === 0x4949;
+                            offset += view.getUint32(offset + 4, little);
+                            const tags = view.getUint16(offset, little);
+                            offset += 2;
+
+                            for (let i = 0; i < tags; i++) {
+                                if (view.getUint16(offset + (i * 12), little) === 0x0112) {
+                                    // Orientation tag gefunden
+                                    const orientation = view.getUint16(offset + (i * 12) + 8, little);
+                                    resolve(orientation);
+                                    return;
+                                }
+                            }
+                        } else if ((marker & 0xFF00) !== 0xFF00) {
+                            break;
+                        } else {
+                            offset += view.getUint16(offset, false);
+                        }
+                    }
+
+                    resolve(1); // Default: keine Rotation
                 };
 
-                img.onerror = () => {
-                    reject(new Error('Bild konnte nicht geladen werden'));
-                };
+                reader.onerror = () => resolve(1);
 
-                img.src = URL.createObjectURL(file);
+                // Lese nur die ersten 64KB (EXIF ist immer am Anfang)
+                reader.readAsArrayBuffer(file.slice(0, 64 * 1024));
             });
         }
 
@@ -704,6 +880,263 @@ function loadBiometricModules() {
         }
 
         /**
+         * 6b. Facial Lighting Validierung (ICAOcheck-inspired)
+         *
+         * Analysiert 4 spezifische Gesichtszonen auf gleichmäßige Ausleuchtung:
+         * - Zone 1: Stirn (Forehead)
+         * - Zone 2: Linke Wange (Left Cheek)
+         * - Zone 3: Rechte Wange (Right Cheek)
+         * - Zone 4: Kinn (Chin)
+         *
+         * Prüft:
+         * 1. Homogenität jeder Zone (mittels Canny Edge Detection)
+         * 2. Helligkeitsunterschiede zwischen Zonen (max 2:1 Ratio)
+         * 3. Schatten-Erkennung
+         */
+        async validateFacialLighting(imageData) {
+            const result = {
+                valid: false,
+                errors: [],
+                warnings: [],
+                zones: [],
+                intensityRatio: null,
+                shadowsDetected: false
+            };
+
+            try {
+                const ctx = imageData.ctx;
+                const width = imageData.width;
+                const height = imageData.height;
+
+                // Definiere 4 Gesichtszonen (approximativ, ohne Face Detection)
+                // Mittige Bereiche des Bildes, wo typischerweise das Gesicht ist
+                const centerX = width / 2;
+                const centerY = height / 2;
+                const zoneWidth = Math.floor(width * 0.15);  // 15% der Bildbreite
+                const zoneHeight = Math.floor(height * 0.12); // 12% der Bildhöhe
+
+                // Zone-Positionen (relativ zum Gesicht in Portrait-Format)
+                const zones = [
+                    {
+                        name: 'Stirn',
+                        x: centerX - zoneWidth / 2,
+                        y: centerY - height * 0.25,
+                        width: zoneWidth,
+                        height: zoneHeight
+                    },
+                    {
+                        name: 'Linke Wange',
+                        x: centerX - width * 0.15,
+                        y: centerY - zoneHeight / 2,
+                        width: zoneWidth,
+                        height: zoneHeight
+                    },
+                    {
+                        name: 'Rechte Wange',
+                        x: centerX + width * 0.05,
+                        y: centerY - zoneHeight / 2,
+                        width: zoneWidth,
+                        height: zoneHeight
+                    },
+                    {
+                        name: 'Kinn',
+                        x: centerX - zoneWidth / 2,
+                        y: centerY + height * 0.15,
+                        width: zoneWidth,
+                        height: zoneHeight
+                    }
+                ];
+
+                // Analysiere jede Zone
+                let minIntensity = 255;
+                let maxIntensity = 0;
+                let allHomogeneous = true;
+
+                for (const zone of zones) {
+                    const zoneData = ctx.getImageData(zone.x, zone.y, zone.width, zone.height);
+
+                    // Berechne durchschnittliche Helligkeit
+                    const data = zoneData.data;
+                    let totalIntensity = 0;
+                    let pixelCount = 0;
+
+                    for (let i = 0; i < data.length; i += 4) {
+                        const r = data[i];
+                        const g = data[i + 1];
+                        const b = data[i + 2];
+                        const intensity = (r + g + b) / 3;
+                        totalIntensity += intensity;
+                        pixelCount++;
+                    }
+
+                    const avgIntensity = totalIntensity / pixelCount;
+
+                    // Prüfe Homogenität (mit Canny Edge Detection)
+                    const homogeneity = this.isZoneHomogeneous(zoneData);
+
+                    const zoneResult = {
+                        name: zone.name,
+                        x: zone.x,
+                        y: zone.y,
+                        width: zone.width,
+                        height: zone.height,
+                        avgIntensity: avgIntensity,
+                        homogeneous: homogeneity.homogeneous,
+                        edgePercentage: homogeneity.edgePercentage
+                    };
+
+                    result.zones.push(zoneResult);
+
+                    // Track min/max Intensität
+                    minIntensity = Math.min(minIntensity, avgIntensity);
+                    maxIntensity = Math.max(maxIntensity, avgIntensity);
+
+                    // Check Homogenität
+                    if (!homogeneity.homogeneous) {
+                        allHomogeneous = false;
+                        this.log(`Zone ${zone.name} nicht homogen: ${homogeneity.edgePercentage.toFixed(1)}% Kanten`);
+                    }
+                }
+
+                // Berechne Intensitäts-Ratio (wie ICAOcheck)
+                const intensityRatio = maxIntensity / (minIntensity || 1);
+                result.intensityRatio = intensityRatio;
+
+                this.log('Facial Lighting Analyse:', {
+                    minIntensity: minIntensity.toFixed(1),
+                    maxIntensity: maxIntensity.toFixed(1),
+                    ratio: intensityRatio.toFixed(2),
+                    allHomogeneous
+                });
+
+                // Validierung
+                const maxRatio = this.config.facialLighting?.maxIntensityRatio || 2.0;
+
+                // Fehler: Nicht alle Zonen homogen
+                if (!allHomogeneous) {
+                    const inhomogeneousZones = result.zones
+                        .filter(z => !z.homogeneous)
+                        .map(z => z.name)
+                        .join(', ');
+
+                    result.errors.push(
+                        `Schatten oder Ungleichmäßigkeiten erkannt in: ${inhomogeneousZones}. ` +
+                        `ICAO erfordert gleichmäßige Ausleuchtung ohne Schatten.`
+                    );
+                    result.shadowsDetected = true;
+                }
+
+                // Fehler: Zu großer Helligkeitsunterschied zwischen Zonen
+                if (intensityRatio > maxRatio) {
+                    result.errors.push(
+                        `Zu große Helligkeitsunterschiede im Gesicht (Ratio: ${intensityRatio.toFixed(2)}:1). ` +
+                        `ICAO erfordert gleichmäßige Beleuchtung (max. ${maxRatio}:1).`
+                    );
+                    result.shadowsDetected = true;
+                }
+
+                // Warnungen für grenzwertige Fälle
+                if (intensityRatio > maxRatio * 0.75 && intensityRatio <= maxRatio) {
+                    result.warnings.push(
+                        `Leichte Helligkeitsunterschiede erkannt (Ratio: ${intensityRatio.toFixed(2)}:1). ` +
+                        `Für beste Ergebnisse: Gleichmäßige Frontalbeleuchtung verwenden.`
+                    );
+                }
+
+                result.valid = result.errors.length === 0;
+
+            } catch (error) {
+                this.log('Facial Lighting Validierung fehlgeschlagen:', error);
+                result.warnings.push('Beleuchtungs-Analyse nicht möglich');
+                result.valid = true; // Nicht blockieren bei technischen Fehlern
+            }
+
+            return result;
+        }
+
+        /**
+         * Prüft ob eine Zone homogen ist (mittels Canny Edge Detection)
+         * Inspiriert von ICAOcheck's Homogenitäts-Check
+         */
+        isZoneHomogeneous(zoneImageData) {
+            const result = {
+                homogeneous: false,
+                edgePercentage: 0
+            };
+
+            try {
+                // Konvertiere zu Graustufen
+                const data = zoneImageData.data;
+                const width = zoneImageData.width;
+                const height = zoneImageData.height;
+                const grayscale = new Uint8ClampedArray(width * height);
+
+                for (let i = 0; i < data.length; i += 4) {
+                    const gray = (data[i] + data[i + 1] + data[i + 2]) / 3;
+                    grayscale[i / 4] = gray;
+                }
+
+                // Simplified Edge Detection (Sobel)
+                const edges = this.sobelEdgeDetection(grayscale, width, height);
+
+                // Zähle Edge-Pixel
+                let edgeCount = 0;
+                for (let i = 0; i < edges.length; i++) {
+                    if (edges[i] > 0) edgeCount++;
+                }
+
+                const edgePercentage = (edgeCount / edges.length) * 100;
+                result.edgePercentage = edgePercentage;
+
+                // Zone ist homogen wenn weniger als 15% Kanten
+                const minHomogeneity = (this.config.facialLighting?.minZoneHomogeneity || 0.85) * 100;
+                result.homogeneous = edgePercentage < (100 - minHomogeneity);
+
+            } catch (error) {
+                this.log('Zone-Homogenitäts-Check fehlgeschlagen:', error);
+                result.homogeneous = true; // Nicht blockieren
+            }
+
+            return result;
+        }
+
+        /**
+         * Sobel Edge Detection (vereinfacht)
+         */
+        sobelEdgeDetection(grayscale, width, height) {
+            const edges = new Uint8ClampedArray(grayscale.length);
+
+            // Sobel Kernels
+            const sobelX = [-1, 0, 1, -2, 0, 2, -1, 0, 1];
+            const sobelY = [-1, -2, -1, 0, 0, 0, 1, 2, 1];
+
+            for (let y = 1; y < height - 1; y++) {
+                for (let x = 1; x < width - 1; x++) {
+                    let gx = 0;
+                    let gy = 0;
+
+                    // Konvolution mit Sobel-Kernels
+                    for (let ky = -1; ky <= 1; ky++) {
+                        for (let kx = -1; kx <= 1; kx++) {
+                            const idx = (y + ky) * width + (x + kx);
+                            const kernelIdx = (ky + 1) * 3 + (kx + 1);
+                            const pixel = grayscale[idx];
+
+                            gx += pixel * sobelX[kernelIdx];
+                            gy += pixel * sobelY[kernelIdx];
+                        }
+                    }
+
+                    // Gradient Magnitude
+                    const magnitude = Math.sqrt(gx * gx + gy * gy);
+                    edges[y * width + x] = magnitude > 50 ? 255 : 0; // Threshold 50
+                }
+            }
+
+            return edges;
+        }
+
+        /**
          * 7. Gesichtserkennung (clientseitig, einfach)
          */
         async validateFace(imageData) {
@@ -920,6 +1353,11 @@ function loadBiometricModules() {
     }
 
 })(typeof window !== 'undefined' ? window : global);
+
+    // ════════════════════════════════════════════════════════════════════════════════
+    // FORMCYCLE INTEGRATION
+    // ════════════════════════════════════════════════════════════════════════════════
+
 /**
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  * FORMCYCLE BIOMETRIC UPLOAD INTEGRATION - STANDALONE VERSION
@@ -951,8 +1389,8 @@ function loadBiometricModules() {
  * - ✅ JPEG-Qualität-Anpassung für kleinere Dateien (optional)
  * - ⚠️ Client = Pre-Filter (~90% Fehler), Server = Vollständige ICAO-Prüfung
  *
- * Version: 2.1.0 - Auto-Optimize Feature (optional)
- * Datum: 2025-01-13
+ * Version: 2.4.3 - Fix: Visual filename cleanup + checkbox transmission logic
+ * Datum: 2025-01-14
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  */
 
@@ -992,6 +1430,13 @@ function loadBiometricModules() {
                 maxVariance: 30,         // ICAO: Einheitlich
                 checkEnabled: true       // Hintergrund-Prüfung aktiv
             },
+            facialLighting: {
+                enabled: true,           // 4-Zonen Lighting-Analyse aktiviert
+                maxIntensityRatio: 2.0,  // Max. Helligkeitsunterschied zwischen Zonen
+                minZoneHomogeneity: 0.85, // Min. Homogenität pro Zone (0-1)
+                edgeThresholdLow: 50,    // Canny Low Threshold
+                edgeThresholdHigh: 150   // Canny High Threshold
+            },
             debug: true
         },
 
@@ -1001,9 +1446,9 @@ function loadBiometricModules() {
         AUTO_REMOVE_INVALID: true, // Ungültige Bilder automatisch entfernen
 
         // Automatische Bild-Optimierung (UX-Feature)
-        // ⚠️ Standardmäßig DEAKTIVIERT für strenge ICAO-Kontrolle
+        // ✅ Standardmäßig AKTIVIERT für bessere Mobile UX (v2.3.0+)
         AUTO_OPTIMIZE: {
-            enabled: false,              // Optimierung aktivieren/deaktivieren
+            enabled: true,               // ✅ AKTIVIERT: Smartphone-Fotos automatisch optimieren
             resize: true,                // Zu große Bilder verkleinern
             maxWidth: 1050,              // Ziel-Breite (ICAO)
             maxHeight: 1350,             // Ziel-Höhe (ICAO)
@@ -1364,6 +1809,26 @@ function loadBiometricModules() {
             ` : ''}
         `);
 
+        // Checkbox für Qualitätsmängel (cb1)
+        const $checkboxContainer = $('<div class="biometric-checkbox-container"></div>').css({
+            border: '2px solid #f39c12',
+            borderTop: 'none',
+            background: '#fff3cd',
+            padding: '12px 15px',
+            display: 'none'  // Nur bei soft errors anzeigen
+        }).html(`
+            <label style="display:flex;align-items:center;cursor:pointer;font-size:13px">
+                <input type="checkbox" data-name="cb1" class="biometric-quality-override" style="margin-right:10px;width:18px;height:18px;cursor:pointer">
+                <div>
+                    <strong>⚠️ Trotz Qualitätsmängeln verwenden</strong><br>
+                    <span style="font-size:11px;color:#856404">
+                        Ich bestätige, dass ich die Qualitätsmängel (Schatten, Beleuchtung, Hintergrund)
+                        akzeptiere und das Bild trotzdem verwenden möchte.
+                    </span>
+                </div>
+            </label>
+        `);
+
         // Status-Container
         const $status = $('<div class="biometric-status"></div>').css({
             border: '2px solid #667eea',
@@ -1381,7 +1846,7 @@ function loadBiometricModules() {
             display: 'none'
         });
 
-        $ui.append($banner, $status, $preview);
+        $ui.append($banner, $checkboxContainer, $status, $preview);
 
         // Füge UI nach dem Upload-Feld ein
         $field.after($ui);
@@ -1390,6 +1855,8 @@ function loadBiometricModules() {
 
         return {
             $ui: $ui,
+            $checkboxContainer: $checkboxContainer,
+            $checkbox: $checkboxContainer.find('[data-name="cb1"]'),
             $status: $status,
             $preview: $preview
         };
@@ -1488,16 +1955,37 @@ function loadBiometricModules() {
 
         } else {
             // FEHLER
+            const hasHardErrors = result.hardErrors && result.hardErrors.length > 0;
+            const hasSoftErrors = result.softErrors && result.softErrors.length > 0;
+
             $status.html(`
                 <div style="text-align:center;padding:20px;color:#dc3545">
-                    <div style="font-size:48px;margin-bottom:10px">❌</div>
+                    <div style="font-size:48px;margin-bottom:10px">${hasHardErrors ? '❌' : '⚠️'}</div>
                     <div style="font-weight:bold;font-size:18px;margin-bottom:10px">
-                        Bild entspricht nicht den Anforderungen
+                        ${hasHardErrors ? 'Bild hat technische Fehler' : 'Bild hat Qualitätsmängel'}
                     </div>
-                    <div style="margin-top:15px;padding:15px;background:#fff;border:2px solid #dc3545;border-radius:6px;text-align:left">
-                        <strong>Fehler:</strong><br>
-                        ${result.errors.map(e => `❌ ${e}`).join('<br><br>')}
-                    </div>
+
+                    ${hasHardErrors ? `
+                        <div style="margin-top:15px;padding:15px;background:#fff;border:2px solid #dc3545;border-radius:6px;text-align:left">
+                            <strong>❌ Technische Fehler (nicht behebbar):</strong><br>
+                            ${result.hardErrors.map(e => `• ${e}`).join('<br><br>')}
+                            <div style="margin-top:10px;padding:10px;background:#f8d7da;border-radius:4px;font-size:12px">
+                                Diese Fehler sind kritisch. Das Bild muss neu aufgenommen werden.
+                            </div>
+                        </div>
+                    ` : ''}
+
+                    ${hasSoftErrors && !hasHardErrors ? `
+                        <div style="margin-top:15px;padding:15px;background:#fff;border:2px solid #f39c12;border-radius:6px;text-align:left">
+                            <strong>⚠️ Qualitätsmängel:</strong><br>
+                            ${result.softErrors.map(e => `• ${e}`).join('<br><br>')}
+                            <div style="margin-top:10px;padding:10px;background:#fff3cd;border-radius:4px;font-size:12px">
+                                <strong>💡 Tipp:</strong> Sie können das Bild trotz dieser Mängel verwenden,<br>
+                                wenn Sie die Checkbox "Trotz Qualitätsmängeln verwenden" abhaken.
+                            </div>
+                        </div>
+                    ` : ''}
+
                     ${result.warnings.length > 0 ? `
                         <div style="margin-top:15px;padding:10px;background:#fff3cd;border-radius:6px;text-align:left">
                             <strong>⚠️ Hinweise:</strong><br>
@@ -1550,6 +2038,9 @@ function loadBiometricModules() {
             // SCHRITT 2: Validierung (mit optimiertem oder originalem Bild)
             const validator = getValidator();
             const result = await validator.validateImage(fileToValidate);
+
+            // Speichere welches File tatsächlich validiert wurde (wichtig für removeInvalidFile!)
+            result.validatedFile = fileToValidate;
 
             // Update Steps basierend auf Result
             if (CONFIG.SHOW_VALIDATION_STEPS) {
@@ -1646,7 +2137,27 @@ function loadBiometricModules() {
 
         $field[0].files = dt.files;
 
-        log('🗑️ Ungültige Datei entfernt:', fileToRemove.name);
+        // WICHTIG: Leere auch den xm-upload-wrapper (Formcycle-spezifisch)
+        const $wrapper = $field.closest('.xm-upload-wrapper');
+        if ($wrapper.length > 0) {
+            log('🗑️ Leere xm-upload-wrapper');
+
+            // Entferne alle visuellen Upload-Elemente
+            $wrapper.find('.xm-upload-file').remove();
+            $wrapper.find('.xm-upload-preview').remove();
+            $wrapper.find('.upload-item').remove();
+            $wrapper.find('.xm-upl-wrapper').remove();  // Entferne Dateinamen-Label
+
+            // Reset des Wrappers
+            $wrapper.removeClass('has-file');
+
+            // Wenn keine Dateien mehr übrig, zeige Upload-Hinweis wieder
+            if (dt.files.length === 0) {
+                $wrapper.find('.xm-upload-placeholder').show();
+            }
+        }
+
+        log('🗑️ Ungültige Datei entfernt:', fileToRemove.name, `(${dt.files.length} Dateien übrig)`);
     }
 
     // ============================================
@@ -1687,12 +2198,38 @@ function loadBiometricModules() {
             // Markiere Feld als setup (WICHTIG: Verhindert infinite loop!)
             $field.data('biometric-setup', true);
 
+            // Mobile-Optimierungen: HTML-Attribute für bessere Smartphone-Erfahrung
+            $field.attr({
+                'accept': 'image/jpeg,image/jpg,image/png',  // Nur unterstützte Formate
+                'capture': 'environment'                      // Rückkamera bevorzugen (besser als Selfie)
+            });
+            log('📱 Mobile-Hints gesetzt:', fieldId, '(capture=environment, accept=image/*)');
+
             // Erstelle UI
             const ui = createValidationUI($field);
             if (!ui) return;
 
             // Speichere UI-Referenz
             $field.data('biometricUI', ui);
+
+            // Checkbox-Event für Soft-Error-Override
+            ui.$checkbox.off('change.biometric-checkbox').on('change.biometric-checkbox', function() {
+                const isChecked = $(this).is(':checked');
+                const softErrorFile = $field.data('softErrorFile');
+
+                if (isChecked && softErrorFile) {
+                    log('✅ cb1 abgehackt → Füge Bild mit Qualitätsmängeln wieder hinzu');
+                    // Füge Datei wieder zum Upload hinzu
+                    const dt = new DataTransfer();
+                    dt.items.add(softErrorFile);
+                    $field[0].files = dt.files;
+                    log('📁 Datei wieder hinzugefügt:', softErrorFile.name);
+                } else if (!isChecked && softErrorFile) {
+                    log('❌ cb1 nicht mehr abgehackt → Entferne Bild mit Qualitätsmängeln');
+                    // Entferne Datei wieder aus Upload
+                    removeInvalidFile($field, softErrorFile);
+                }
+            });
 
             // Change-Event für Validierung
             $field.off('change.biometric').on('change.biometric', async function(e) {
@@ -1713,26 +2250,74 @@ function loadBiometricModules() {
                     if (!result.valid) {
                         log('❌ Datei ungültig:', file.name);
 
-                        if (CONFIG.AUTO_REMOVE_INVALID) {
-                            // Entferne automatisch
-                            removeInvalidFile($field, file);
-                        } else {
-                            // Frage User
-                            const shouldRemove = confirm(
-                                `Datei "${file.name}" entspricht nicht den biometrischen Anforderungen.\n\n` +
-                                `Fehler:\n${result.errors.join('\n')}\n\n` +
-                                `Möchten Sie die Datei entfernen?`
-                            );
+                        // NEUE LOGIK: Hard vs. Soft Errors
+                        const hasHardErrors = result.hardErrors && result.hardErrors.length > 0;
+                        const hasSoftErrors = result.softErrors && result.softErrors.length > 0;
 
-                            if (shouldRemove) {
-                                removeInvalidFile($field, file);
+                        log(`  → Hard Errors: ${hasHardErrors ? result.hardErrors.length : 0}`);
+                        log(`  → Soft Errors: ${hasSoftErrors ? result.softErrors.length : 0}`);
+
+                        // Wenn NUR soft errors → Checkbox anzeigen
+                        if (!hasHardErrors && hasSoftErrors) {
+                            ui.$checkboxContainer.show();
+
+                            // Speichere Datei-Referenz für späteres Re-Adding
+                            const fileToRemove = result.validatedFile || file;
+                            $field.data('softErrorFile', fileToRemove);
+                            $field.data('softErrorResult', result);
+
+                            // Prüfe ob Checkbox abgehackt ist
+                            const checkboxChecked = ui.$checkbox.is(':checked');
+
+                            if (checkboxChecked) {
+                                log('✅ Qualitätsmängel vom User akzeptiert (cb1 checked) → Bild wird NICHT entfernt');
+                                // User akzeptiert Qualitätsmängel → Bild bleibt im Upload!
+                                return;
+                            } else {
+                                log('⚠️ Qualitätsmängel erkannt, Checkbox nicht abgehackt → Bild wird entfernt (bis cb1 abgehackt wird)');
+                                // Entferne Bild aus Upload - User kann Checkbox abhaken um es wieder hinzuzufügen
+                                removeInvalidFile($field, fileToRemove);
+                                return;
                             }
                         }
 
-                        // Verhindere weiteren Upload
-                        return false;
+                        // NUR bei Hard Errors → Datei wirklich entfernen
+                        if (hasHardErrors) {
+                            log('❌ Hard Errors erkannt → Datei wird entfernt');
+
+                            // Verstecke Checkbox und lösche Soft-Error-Daten
+                            ui.$checkboxContainer.hide();
+                            ui.$checkbox.prop('checked', false);
+                            $field.removeData('softErrorFile');
+                            $field.removeData('softErrorResult');
+
+                            // WICHTIG: Verwende das validierte File (könnte optimiert sein!)
+                            const fileToRemove = result.validatedFile || file;
+
+                            if (CONFIG.AUTO_REMOVE_INVALID) {
+                                // Entferne automatisch
+                                removeInvalidFile($field, fileToRemove);
+                            } else {
+                                // Frage User
+                                const shouldRemove = confirm(
+                                    `Datei "${file.name}" hat technische Fehler (nicht behebbar):\n\n${result.hardErrors.join('\n')}\n\nDie Datei muss entfernt werden.`
+                                );
+
+                                if (shouldRemove) {
+                                    removeInvalidFile($field, fileToRemove);
+                                }
+                            }
+
+                            // Verhindere weiteren Upload
+                            return false;
+                        }
                     } else {
                         log('✅ Datei gültig:', file.name);
+                        // Verstecke Checkbox und lösche Soft-Error-Daten bei gültigem Bild
+                        ui.$checkboxContainer.hide();
+                        ui.$checkbox.prop('checked', false);
+                        $field.removeData('softErrorFile');
+                        $field.removeData('softErrorResult');
                     }
                 }
             });

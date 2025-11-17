@@ -1300,7 +1300,7 @@
  * - ✅ JPEG-Qualität-Anpassung für kleinere Dateien (optional)
  * - ⚠️ Client = Pre-Filter (~90% Fehler), Server = Vollständige ICAO-Prüfung
  *
- * Version: 2.4.2 - Fix: Remove correct file after optimization
+ * Version: 2.4.3 - Fix: Visual filename cleanup + checkbox transmission logic
  * Datum: 2025-01-14
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  */
@@ -2057,6 +2057,7 @@
             $wrapper.find('.xm-upload-file').remove();
             $wrapper.find('.xm-upload-preview').remove();
             $wrapper.find('.upload-item').remove();
+            $wrapper.find('.xm-upl-wrapper').remove();  // Entferne Dateinamen-Label
 
             // Reset des Wrappers
             $wrapper.removeClass('has-file');
@@ -2122,6 +2123,25 @@
             // Speichere UI-Referenz
             $field.data('biometricUI', ui);
 
+            // Checkbox-Event für Soft-Error-Override
+            ui.$checkbox.off('change.biometric-checkbox').on('change.biometric-checkbox', function() {
+                const isChecked = $(this).is(':checked');
+                const softErrorFile = $field.data('softErrorFile');
+
+                if (isChecked && softErrorFile) {
+                    log('✅ cb1 abgehackt → Füge Bild mit Qualitätsmängeln wieder hinzu');
+                    // Füge Datei wieder zum Upload hinzu
+                    const dt = new DataTransfer();
+                    dt.items.add(softErrorFile);
+                    $field[0].files = dt.files;
+                    log('📁 Datei wieder hinzugefügt:', softErrorFile.name);
+                } else if (!isChecked && softErrorFile) {
+                    log('❌ cb1 nicht mehr abgehackt → Entferne Bild mit Qualitätsmängeln');
+                    // Entferne Datei wieder aus Upload
+                    removeInvalidFile($field, softErrorFile);
+                }
+            });
+
             // Change-Event für Validierung
             $field.off('change.biometric').on('change.biometric', async function(e) {
                 const newFiles = Array.from(e.target.files || []);
@@ -2148,9 +2168,14 @@
                         log(`  → Hard Errors: ${hasHardErrors ? result.hardErrors.length : 0}`);
                         log(`  → Soft Errors: ${hasSoftErrors ? result.softErrors.length : 0}`);
 
-                        // Wenn NUR soft errors → Checkbox anzeigen, Bild BEHALTEN!
+                        // Wenn NUR soft errors → Checkbox anzeigen
                         if (!hasHardErrors && hasSoftErrors) {
                             ui.$checkboxContainer.show();
+
+                            // Speichere Datei-Referenz für späteres Re-Adding
+                            const fileToRemove = result.validatedFile || file;
+                            $field.data('softErrorFile', fileToRemove);
+                            $field.data('softErrorResult', result);
 
                             // Prüfe ob Checkbox abgehackt ist
                             const checkboxChecked = ui.$checkbox.is(':checked');
@@ -2160,9 +2185,9 @@
                                 // User akzeptiert Qualitätsmängel → Bild bleibt im Upload!
                                 return;
                             } else {
-                                log('⚠️ Qualitätsmängel erkannt, Checkbox nicht abgehackt → Bild BLEIBT im Upload, User kann cb1 abhaken');
-                                // Bild BLEIBT im Upload! User kann Checkbox abhaken um zu bestätigen
-                                // NICHT entfernen! Nur bei hard errors entfernen!
+                                log('⚠️ Qualitätsmängel erkannt, Checkbox nicht abgehackt → Bild wird entfernt (bis cb1 abgehackt wird)');
+                                // Entferne Bild aus Upload - User kann Checkbox abhaken um es wieder hinzuzufügen
+                                removeInvalidFile($field, fileToRemove);
                                 return;
                             }
                         }
@@ -2170,6 +2195,12 @@
                         // NUR bei Hard Errors → Datei wirklich entfernen
                         if (hasHardErrors) {
                             log('❌ Hard Errors erkannt → Datei wird entfernt');
+
+                            // Verstecke Checkbox und lösche Soft-Error-Daten
+                            ui.$checkboxContainer.hide();
+                            ui.$checkbox.prop('checked', false);
+                            $field.removeData('softErrorFile');
+                            $field.removeData('softErrorResult');
 
                             // WICHTIG: Verwende das validierte File (könnte optimiert sein!)
                             const fileToRemove = result.validatedFile || file;
@@ -2193,8 +2224,11 @@
                         }
                     } else {
                         log('✅ Datei gültig:', file.name);
-                        // Verstecke Checkbox bei gültigem Bild
+                        // Verstecke Checkbox und lösche Soft-Error-Daten bei gültigem Bild
                         ui.$checkboxContainer.hide();
+                        ui.$checkbox.prop('checked', false);
+                        $field.removeData('softErrorFile');
+                        $field.removeData('softErrorResult');
                     }
                 }
             });
