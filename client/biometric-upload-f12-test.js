@@ -2,29 +2,30 @@
 // BIOMETRIC UPLOAD - F12 TEST VERSION
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 //
-// Version: 2.3.0 - Mobile & Smartphone Optimizations
+// Version: 2.4.0 - Quality Tolerance with Checkbox Override
 //
 // ⚠️ WICHTIG - GRENZEN DER CLIENT-VALIDIERUNG:
 // Diese Validierung ist ein PRE-FILTER (technische Checks).
 // Sie prüft NICHT: Brillenreflexionen, Gesichtsausdruck, Augen, Haare, etc.
 // → Für vollständige ICAO-Konformität Server-Validierung aktivieren!
 //
-// 🆕 NEU in v2.3: Mobile & Smartphone Optimizations
-// - ✅ EXIF-Rotation Support (Portrait-Fotos werden korrekt gedreht!)
-// - ✅ HEIC/HEIF Format-Warning (iPhone-Tipps)
-// - ✅ Auto-Optimize standardmäßig aktiviert (Smartphone-Fotos automatisch optimieren)
-// - ✅ Mobile-Hints (capture="environment" für Rückkamera)
+// 🆕 NEU in v2.4: Quality Tolerance with Checkbox (cb1)
+// - ✅ Hard Errors vs. Soft Errors Klassifizierung
+// - ✅ Hard Errors (Format, Größe, Dimensionen) → Bild wird IMMER entfernt
+// - ✅ Soft Errors (Schatten, Beleuchtung, Hintergrund) → Checkbox-Override möglich!
+// - ✅ Checkbox cb1 "Trotz Qualitätsmängeln verwenden" für Soft Errors
+// - ✅ Bild bleibt bei Soft Errors im Upload, User kann selbst entscheiden
+//
+// v2.3 Features (bereits enthalten):
+// - EXIF-Rotation Support (Portrait-Fotos korrekt gedreht)
+// - HEIC/HEIF Format-Warning (iPhone-Tipps)
+// - Auto-Optimize standardmäßig aktiviert
+// - Mobile-Hints (capture="environment" für Rückkamera)
 //
 // v2.2 Features (bereits enthalten):
-// - 4-Zonen Facial Lighting Analyse (Stirn, Wangen, Kinn)
-// - Sobel Edge Detection für Schatten-Erkennung
+// - 4-Zonen Facial Lighting Analyse
+// - Sobel Edge Detection für Schatten
 // - Homogenitäts-Checks pro Zone
-// - Helligkeitsunterschiede zwischen Zonen (max 2:1 Ratio)
-//
-// Auto-Optimize Feature (jetzt standardmäßig AKTIVIERT!)
-// - ✅ Verkleinert automatisch zu große Bilder
-// - ✅ Reduziert Dateigröße durch JPEG-Qualität-Anpassung
-// - ✅ Nur verkleinern, nie vergrößern!
 //
 // SO VERWENDEN (F12 Console):
 // 1. F12 drücken → Console-Tab öffnen
@@ -42,7 +43,7 @@
 
 console.clear();
 console.log('%c━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'color: #667eea; font-weight: bold');
-console.log('%c⚡ BIOMETRIC UPLOAD - F12 TEST MODE (v2.3)', 'color: #667eea; font-weight: bold; font-size: 16px');
+console.log('%c⚡ BIOMETRIC UPLOAD - F12 TEST MODE (v2.4)', 'color: #667eea; font-weight: bold; font-size: 16px');
 console.log('%c━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'color: #667eea; font-weight: bold');
 console.log('📋 Lade Module...');
 

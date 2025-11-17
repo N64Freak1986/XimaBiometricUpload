@@ -31,7 +31,7 @@
  *    ~90% der ungeeigneten Bilder (falsche Größe, Hintergrund, etc.) und
  *    reduziert damit die Last auf dem Server.
  *
- * Version: 2.3.0 - Mobile & Smartphone Optimizations
+ * Version: 2.4.0 - Quality Tolerance with Checkbox Override
  * Datum: 2025-01-14
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  */
@@ -127,62 +127,70 @@
 
             const result = {
                 valid: false,
-                errors: [],
+                errors: [],           // Alle Fehler (Kompatibilität)
+                hardErrors: [],       // Technisch kritische Fehler (immer ablehnen)
+                softErrors: [],       // Qualitätsmängel (mit Checkbox akzeptierbar)
                 warnings: [],
                 details: {},
                 timestamp: new Date().toISOString()
             };
 
             try {
-                // 1. Format-Check
+                // 1. Format-Check (HARD ERROR)
                 const formatCheck = this.validateFormat(file);
                 result.details.format = formatCheck;
                 if (!formatCheck.valid) {
+                    result.hardErrors.push(...formatCheck.errors);
                     result.errors.push(...formatCheck.errors);
                 }
 
-                // 2. Dateigröße-Check
+                // 2. Dateigröße-Check (HARD ERROR)
                 const sizeCheck = this.validateFileSize(file);
                 result.details.fileSize = sizeCheck;
                 if (!sizeCheck.valid) {
+                    result.hardErrors.push(...sizeCheck.errors);
                     result.errors.push(...sizeCheck.errors);
                 }
 
-                // 3. Bild laden und Dimensionen prüfen
+                // 3. Bild laden und Dimensionen prüfen (HARD ERROR)
                 const imageData = await this.loadImage(file);
                 result.details.image = imageData;
 
                 const dimensionCheck = this.validateDimensions(imageData);
                 result.details.dimensions = dimensionCheck;
                 if (!dimensionCheck.valid) {
+                    result.hardErrors.push(...dimensionCheck.errors);
                     result.errors.push(...dimensionCheck.errors);
                 }
                 if (dimensionCheck.warnings.length > 0) {
                     result.warnings.push(...dimensionCheck.warnings);
                 }
 
-                // 4. Seitenverhältnis-Check
+                // 4. Seitenverhältnis-Check (HARD ERROR)
                 const aspectCheck = this.validateAspectRatio(imageData);
                 result.details.aspectRatio = aspectCheck;
                 if (!aspectCheck.valid) {
+                    result.hardErrors.push(...aspectCheck.errors);
                     result.errors.push(...aspectCheck.errors);
                 }
 
-                // 5. Bildqualität-Check
+                // 5. Bildqualität-Check (SOFT ERROR - Qualitätsmangel)
                 const qualityCheck = await this.validateQuality(imageData);
                 result.details.quality = qualityCheck;
                 if (!qualityCheck.valid) {
+                    result.softErrors.push(...qualityCheck.errors);
                     result.errors.push(...qualityCheck.errors);
                 }
                 if (qualityCheck.warnings.length > 0) {
                     result.warnings.push(...qualityCheck.warnings);
                 }
 
-                // 6. Hintergrund-Check (ICAO: Schlicht, einheitlich, hell)
+                // 6. Hintergrund-Check (SOFT ERROR - mit Checkbox akzeptierbar)
                 if (this.config.background && this.config.background.checkEnabled) {
                     const backgroundCheck = await this.validateBackground(imageData);
                     result.details.background = backgroundCheck;
                     if (!backgroundCheck.valid) {
+                        result.softErrors.push(...backgroundCheck.errors);
                         result.errors.push(...backgroundCheck.errors);
                     }
                     if (backgroundCheck.warnings.length > 0) {
@@ -190,11 +198,12 @@
                     }
                 }
 
-                // 6b. Facial Lighting Check (ICAOcheck-inspired: 4-Zonen-Analyse)
+                // 6b. Facial Lighting Check (SOFT ERROR - mit Checkbox akzeptierbar)
                 if (this.config.facialLighting && this.config.facialLighting.enabled) {
                     const lightingCheck = await this.validateFacialLighting(imageData);
                     result.details.facialLighting = lightingCheck;
                     if (!lightingCheck.valid) {
+                        result.softErrors.push(...lightingCheck.errors);
                         result.errors.push(...lightingCheck.errors);
                     }
                     if (lightingCheck.warnings.length > 0) {
@@ -209,11 +218,12 @@
                     return result;
                 }
 
-                // 7. Gesichtserkennung (optional, clientseitig)
+                // 7. Gesichtserkennung (SOFT ERROR - optional, mit Checkbox akzeptierbar)
                 if (this.config.enableFaceDetection) {
                     const faceCheck = await this.validateFace(imageData);
                     result.details.face = faceCheck;
                     if (!faceCheck.valid) {
+                        result.softErrors.push(...faceCheck.errors);
                         result.errors.push(...faceCheck.errors);
                     }
                     if (faceCheck.warnings.length > 0) {
@@ -221,11 +231,12 @@
                     }
                 }
 
-                // 8. Server-Validierung (detaillierte Biometrie)
+                // 8. Server-Validierung (HARD ERROR - Server entscheidet)
                 if (this.config.enableServerValidation && this.config.serverEndpoint) {
                     const serverCheck = await this.validateOnServer(file);
                     result.details.server = serverCheck;
                     if (!serverCheck.valid) {
+                        result.hardErrors.push(...serverCheck.errors);
                         result.errors.push(...serverCheck.errors);
                     }
                     if (serverCheck.warnings && serverCheck.warnings.length > 0) {

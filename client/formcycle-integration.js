@@ -29,7 +29,7 @@
  * - ✅ JPEG-Qualität-Anpassung für kleinere Dateien (optional)
  * - ⚠️ Client = Pre-Filter (~90% Fehler), Server = Vollständige ICAO-Prüfung
  *
- * Version: 2.3.0 - Mobile & Smartphone Optimizations
+ * Version: 2.4.0 - Quality Tolerance with Checkbox Override
  * Datum: 2025-01-14
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  */
@@ -449,6 +449,26 @@
             ` : ''}
         `);
 
+        // Checkbox für Qualitätsmängel (cb1)
+        const $checkboxContainer = $('<div class="biometric-checkbox-container"></div>').css({
+            border: '2px solid #f39c12',
+            borderTop: 'none',
+            background: '#fff3cd',
+            padding: '12px 15px',
+            display: 'none'  // Nur bei soft errors anzeigen
+        }).html(`
+            <label style="display:flex;align-items:center;cursor:pointer;font-size:13px">
+                <input type="checkbox" id="cb1" class="biometric-quality-override" style="margin-right:10px;width:18px;height:18px;cursor:pointer">
+                <div>
+                    <strong>⚠️ Trotz Qualitätsmängeln verwenden</strong><br>
+                    <span style="font-size:11px;color:#856404">
+                        Ich bestätige, dass ich die Qualitätsmängel (Schatten, Beleuchtung, Hintergrund)
+                        akzeptiere und das Bild trotzdem verwenden möchte.
+                    </span>
+                </div>
+            </label>
+        `);
+
         // Status-Container
         const $status = $('<div class="biometric-status"></div>').css({
             border: '2px solid #667eea',
@@ -466,7 +486,7 @@
             display: 'none'
         });
 
-        $ui.append($banner, $status, $preview);
+        $ui.append($banner, $checkboxContainer, $status, $preview);
 
         // Füge UI nach dem Upload-Feld ein
         $field.after($ui);
@@ -475,6 +495,8 @@
 
         return {
             $ui: $ui,
+            $checkboxContainer: $checkboxContainer,
+            $checkbox: $checkboxContainer.find('#cb1'),
             $status: $status,
             $preview: $preview
         };
@@ -573,16 +595,37 @@
 
         } else {
             // FEHLER
+            const hasHardErrors = result.hardErrors && result.hardErrors.length > 0;
+            const hasSoftErrors = result.softErrors && result.softErrors.length > 0;
+
             $status.html(`
                 <div style="text-align:center;padding:20px;color:#dc3545">
-                    <div style="font-size:48px;margin-bottom:10px">❌</div>
+                    <div style="font-size:48px;margin-bottom:10px">${hasHardErrors ? '❌' : '⚠️'}</div>
                     <div style="font-weight:bold;font-size:18px;margin-bottom:10px">
-                        Bild entspricht nicht den Anforderungen
+                        ${hasHardErrors ? 'Bild hat technische Fehler' : 'Bild hat Qualitätsmängel'}
                     </div>
-                    <div style="margin-top:15px;padding:15px;background:#fff;border:2px solid #dc3545;border-radius:6px;text-align:left">
-                        <strong>Fehler:</strong><br>
-                        ${result.errors.map(e => `❌ ${e}`).join('<br><br>')}
-                    </div>
+
+                    ${hasHardErrors ? `
+                        <div style="margin-top:15px;padding:15px;background:#fff;border:2px solid #dc3545;border-radius:6px;text-align:left">
+                            <strong>❌ Technische Fehler (nicht behebbar):</strong><br>
+                            ${result.hardErrors.map(e => `• ${e}`).join('<br><br>')}
+                            <div style="margin-top:10px;padding:10px;background:#f8d7da;border-radius:4px;font-size:12px">
+                                Diese Fehler sind kritisch. Das Bild muss neu aufgenommen werden.
+                            </div>
+                        </div>
+                    ` : ''}
+
+                    ${hasSoftErrors && !hasHardErrors ? `
+                        <div style="margin-top:15px;padding:15px;background:#fff;border:2px solid #f39c12;border-radius:6px;text-align:left">
+                            <strong>⚠️ Qualitätsmängel:</strong><br>
+                            ${result.softErrors.map(e => `• ${e}`).join('<br><br>')}
+                            <div style="margin-top:10px;padding:10px;background:#fff3cd;border-radius:4px;font-size:12px">
+                                <strong>💡 Tipp:</strong> Sie können das Bild trotz dieser Mängel verwenden,<br>
+                                wenn Sie die Checkbox "Trotz Qualitätsmängeln verwenden" abhaken.
+                            </div>
+                        </div>
+                    ` : ''}
+
                     ${result.warnings.length > 0 ? `
                         <div style="margin-top:15px;padding:10px;background:#fff3cd;border-radius:6px;text-align:left">
                             <strong>⚠️ Hinweise:</strong><br>
@@ -805,26 +848,57 @@
                     if (!result.valid) {
                         log('❌ Datei ungültig:', file.name);
 
-                        if (CONFIG.AUTO_REMOVE_INVALID) {
-                            // Entferne automatisch
-                            removeInvalidFile($field, file);
-                        } else {
-                            // Frage User
-                            const shouldRemove = confirm(
-                                `Datei "${file.name}" entspricht nicht den biometrischen Anforderungen.\n\n` +
-                                `Fehler:\n${result.errors.join('\n')}\n\n` +
-                                `Möchten Sie die Datei entfernen?`
-                            );
+                        // NEUE LOGIK: Hard vs. Soft Errors
+                        const hasHardErrors = result.hardErrors && result.hardErrors.length > 0;
+                        const hasSoftErrors = result.softErrors && result.softErrors.length > 0;
 
-                            if (shouldRemove) {
-                                removeInvalidFile($field, file);
+                        log(`  → Hard Errors: ${hasHardErrors ? result.hardErrors.length : 0}`);
+                        log(`  → Soft Errors: ${hasSoftErrors ? result.softErrors.length : 0}`);
+
+                        // Wenn NUR soft errors → Checkbox anzeigen, Bild BEHALTEN!
+                        if (!hasHardErrors && hasSoftErrors) {
+                            ui.$checkboxContainer.show();
+
+                            // Prüfe ob Checkbox abgehackt ist
+                            const checkboxChecked = ui.$checkbox.is(':checked');
+
+                            if (checkboxChecked) {
+                                log('✅ Qualitätsmängel vom User akzeptiert (cb1 checked) → Bild wird NICHT entfernt');
+                                // User akzeptiert Qualitätsmängel → Bild bleibt im Upload!
+                                return;
+                            } else {
+                                log('⚠️ Qualitätsmängel erkannt, Checkbox nicht abgehackt → Bild BLEIBT im Upload, User kann cb1 abhaken');
+                                // Bild BLEIBT im Upload! User kann Checkbox abhaken um zu bestätigen
+                                // NICHT entfernen! Nur bei hard errors entfernen!
+                                return;
                             }
                         }
 
-                        // Verhindere weiteren Upload
-                        return false;
+                        // NUR bei Hard Errors → Datei wirklich entfernen
+                        if (hasHardErrors) {
+                            log('❌ Hard Errors erkannt → Datei wird entfernt');
+
+                            if (CONFIG.AUTO_REMOVE_INVALID) {
+                                // Entferne automatisch
+                                removeInvalidFile($field, file);
+                            } else {
+                                // Frage User
+                                const shouldRemove = confirm(
+                                    `Datei "${file.name}" hat technische Fehler (nicht behebbar):\n\n${result.hardErrors.join('\n')}\n\nDie Datei muss entfernt werden.`
+                                );
+
+                                if (shouldRemove) {
+                                    removeInvalidFile($field, file);
+                                }
+                            }
+
+                            // Verhindere weiteren Upload
+                            return false;
+                        }
                     } else {
                         log('✅ Datei gültig:', file.name);
+                        // Verstecke Checkbox bei gültigem Bild
+                        ui.$checkboxContainer.hide();
                     }
                 }
             });
