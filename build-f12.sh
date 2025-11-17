@@ -7,7 +7,7 @@ cat > /home/user/XimaBiometricUpload/client/biometric-upload-f12-test.js << 'HEA
 // BIOMETRIC UPLOAD - F12 TEST VERSION
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 //
-// Version: 2.4.3 - Fix: Visual filename cleanup + checkbox transmission logic
+// Version: 2.4.4 - Use Formcycle checkbox cb1 instead of custom checkbox
 //
 // ⚠️ WICHTIG - GRENZEN DER CLIENT-VALIDIERUNG:
 // Diese Validierung ist ein PRE-FILTER (technische Checks).
@@ -18,9 +18,9 @@ cat > /home/user/XimaBiometricUpload/client/biometric-upload-f12-test.js << 'HEA
 // - ✅ Hard Errors vs. Soft Errors Klassifizierung
 // - ✅ Hard Errors (Format, Größe, Dimensionen) → Bild wird IMMER entfernt
 // - ✅ Soft Errors (Schatten, Beleuchtung, Hintergrund) → Checkbox-Override möglich!
-// - ✅ Checkbox cb1 "Trotz Qualitätsmängeln verwenden" für Soft Errors
+// - ✅ Verwendet vorhandene Formcycle Checkbox cb1 (keine custom checkbox mehr)
 // - ✅ Checkbox initial versteckt, nur bei Soft Errors sichtbar
-// - ✅ Bild wird nur übertragen wenn cb1 abgehackt ist (v2.4.3)
+// - ✅ Bild wird nur übertragen wenn cb1 abgehackt ist
 //
 // v2.3 Features (bereits enthalten):
 // - EXIF-Rotation Support (Portrait-Fotos korrekt gedreht)
@@ -49,7 +49,7 @@ cat > /home/user/XimaBiometricUpload/client/biometric-upload-f12-test.js << 'HEA
 
 console.clear();
 console.log('%c━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'color: #667eea; font-weight: bold');
-console.log('%c⚡ BIOMETRIC UPLOAD - F12 TEST MODE (v2.4.3)', 'color: #667eea; font-weight: bold; font-size: 16px');
+console.log('%c⚡ BIOMETRIC UPLOAD - F12 TEST MODE (v2.4.4)', 'color: #667eea; font-weight: bold; font-size: 16px');
 console.log('%c━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'color: #667eea; font-weight: bold');
 console.log('📋 Lade Module...');
 

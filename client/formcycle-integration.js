@@ -29,7 +29,7 @@
  * - ✅ JPEG-Qualität-Anpassung für kleinere Dateien (optional)
  * - ⚠️ Client = Pre-Filter (~90% Fehler), Server = Vollständige ICAO-Prüfung
  *
- * Version: 2.4.3 - Fix: Visual filename cleanup + checkbox transmission logic
+ * Version: 2.4.4 - Use Formcycle checkbox cb1 instead of custom checkbox
  * Datum: 2025-01-14
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  */
@@ -449,26 +449,6 @@
             ` : ''}
         `);
 
-        // Checkbox für Qualitätsmängel (cb1)
-        const $checkboxContainer = $('<div class="biometric-checkbox-container"></div>').css({
-            border: '2px solid #f39c12',
-            borderTop: 'none',
-            background: '#fff3cd',
-            padding: '12px 15px',
-            display: 'none'  // Nur bei soft errors anzeigen
-        }).html(`
-            <label style="display:flex;align-items:center;cursor:pointer;font-size:13px">
-                <input type="checkbox" data-name="cb1" class="biometric-quality-override" style="margin-right:10px;width:18px;height:18px;cursor:pointer">
-                <div>
-                    <strong>⚠️ Trotz Qualitätsmängeln verwenden</strong><br>
-                    <span style="font-size:11px;color:#856404">
-                        Ich bestätige, dass ich die Qualitätsmängel (Schatten, Beleuchtung, Hintergrund)
-                        akzeptiere und das Bild trotzdem verwenden möchte.
-                    </span>
-                </div>
-            </label>
-        `);
-
         // Status-Container
         const $status = $('<div class="biometric-status"></div>').css({
             border: '2px solid #667eea',
@@ -486,17 +466,30 @@
             display: 'none'
         });
 
-        $ui.append($banner, $checkboxContainer, $status, $preview);
+        $ui.append($banner, $status, $preview);
 
         // Füge UI nach dem Upload-Feld ein
         $field.after($ui);
+
+        // Finde vorhandene Formcycle Checkbox cb1 im selben Formular/Page
+        const $page = $field.closest('.XPage');
+        const $formcycleCheckbox = $page.find('input[type="checkbox"][data-name="cb1"]').first();
+        const $checkboxContainer = $formcycleCheckbox.closest('.xm-item-div');
+
+        if ($formcycleCheckbox.length === 0) {
+            log('⚠️ WARNUNG: Formcycle Checkbox cb1 nicht gefunden!');
+        } else {
+            log('✅ Formcycle Checkbox cb1 gefunden:', $formcycleCheckbox.attr('id'));
+            // Verstecke initial
+            $checkboxContainer.hide();
+        }
 
         log('✅ Validierungs-UI erstellt für:', fieldId);
 
         return {
             $ui: $ui,
             $checkboxContainer: $checkboxContainer,
-            $checkbox: $checkboxContainer.find('[data-name="cb1"]'),
+            $checkbox: $formcycleCheckbox,
             $status: $status,
             $preview: $preview
         };
