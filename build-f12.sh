@@ -7,18 +7,19 @@ cat > /home/user/XimaBiometricUpload/client/biometric-upload-f12-test.js << 'HEA
 // BIOMETRIC UPLOAD - F12 TEST VERSION
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 //
-// Version: 2.4.4 - Use Formcycle checkbox cb1 instead of custom checkbox
+// Version: 2.5.0 - Relaxed requirements for better UX
 //
 // ⚠️ WICHTIG - GRENZEN DER CLIENT-VALIDIERUNG:
 // Diese Validierung ist ein PRE-FILTER (technische Checks).
 // Sie prüft NICHT: Brillenreflexionen, Gesichtsausdruck, Augen, Haare, etc.
 // → Für vollständige ICAO-Konformität Server-Validierung aktivieren!
 //
-// 🆕 NEU in v2.4: Quality Tolerance with Checkbox (cb1)
-// - ✅ Hard Errors vs. Soft Errors Klassifizierung
-// - ✅ Hard Errors (Format, Größe, Dimensionen) → Bild wird IMMER entfernt
-// - ✅ Soft Errors (Schatten, Beleuchtung, Hintergrund) → Checkbox-Override möglich!
-// - ✅ Verwendet vorhandene Formcycle Checkbox cb1 (keine custom checkbox mehr)
+// 🆕 NEU in v2.5: Gelockerte Anforderungen für bessere UX
+// - ✅ Mindestauflösung: 800×1029px (statt 1050×1350px)
+// - ✅ Dimensionen & Seitenverhältnis = Soft Errors (Checkbox-Override möglich!)
+// - ✅ Größere Toleranzen für Hintergrund, Beleuchtung, Schärfe
+// - ✅ Hard Errors nur noch: Format, Dateigröße (30-500 KB)
+// - ✅ Verwendet Formcycle Checkbox cb1 für Soft-Error-Override
 // - ✅ Checkbox initial versteckt, nur bei Soft Errors sichtbar
 // - ✅ Bild wird nur übertragen wenn cb1 abgehackt ist
 //
@@ -49,7 +50,7 @@ cat > /home/user/XimaBiometricUpload/client/biometric-upload-f12-test.js << 'HEA
 
 console.clear();
 console.log('%c━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'color: #667eea; font-weight: bold');
-console.log('%c⚡ BIOMETRIC UPLOAD - F12 TEST MODE (v2.4.4)', 'color: #667eea; font-weight: bold; font-size: 16px');
+console.log('%c⚡ BIOMETRIC UPLOAD - F12 TEST MODE (v2.5.0)', 'color: #667eea; font-weight: bold; font-size: 16px');
 console.log('%c━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'color: #667eea; font-weight: bold');
 console.log('📋 Lade Module...');
 

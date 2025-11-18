@@ -29,7 +29,7 @@
  * - ✅ JPEG-Qualität-Anpassung für kleinere Dateien (optional)
  * - ⚠️ Client = Pre-Filter (~90% Fehler), Server = Vollständige ICAO-Prüfung
  *
- * Version: 2.4.4 - Use Formcycle checkbox cb1 instead of custom checkbox
+ * Version: 2.5.0 - Relaxed requirements for better UX (dimensions = soft errors)
  * Datum: 2025-01-14
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  */
@@ -436,9 +436,9 @@
             textAlign: 'center',
             fontSize: '13px'
         }).html(`
-            <div style="margin-bottom:6px">🔐 Biometrische Bildprüfung aktiv (ICAO-Standard)</div>
+            <div style="margin-bottom:6px">🔐 Biometrische Bildprüfung aktiv (ICAO-Kompatibel)</div>
             <div style="font-size:11px;font-weight:normal;opacity:0.9">
-                Führerscheinfoto • ICAO: 1050×1350px (35×45mm) • JPEG/PNG • Max 500 KB • Heller Hintergrund
+                Führerscheinfoto • Min: 800×1029px • Empfohlen: 1050×1350px • JPEG/PNG • Max 500 KB
             </div>
             ${!serverValidationEnabled ? `
                 <div style="margin-top:8px;padding:8px;background:rgba(0,0,0,0.3);border-radius:4px;font-size:11px;font-weight:normal">

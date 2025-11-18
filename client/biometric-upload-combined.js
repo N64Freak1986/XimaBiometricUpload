@@ -31,7 +31,7 @@
  *    ~90% der ungeeigneten Bilder (falsche Größe, Hintergrund, etc.) und
  *    reduziert damit die Last auf dem Server.
  *
- * Version: 2.4.0 - Quality Tolerance with Checkbox Override
+ * Version: 2.5.0 - Relaxed requirements for better UX
  * Datum: 2025-01-14
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  */
@@ -43,23 +43,25 @@
      * Biometrische Anforderungen nach ICAO Doc 9303
      *
      * ICAO-Standard: 35mm × 45mm @ 300 DPI = 1050 × 1350 Pixel
-     * Gesichtshöhe: 32-36mm = 70-80% der Bildhöhe
-     * Hintergrund: Schlicht, einheitlich, hell (weiß/hellgrau)
+     * Gelockerte Anforderungen für bessere User Experience:
+     * - Mindestauflösung reduziert auf 800×1029 px (~230 DPI)
+     * - Größere Toleranzen für Hintergrund und Beleuchtung
+     * - Dimensionen als Soft Errors (mit Checkbox-Override)
      */
     const BIOMETRIC_REQUIREMENTS = {
-        // Technische Anforderungen (ICAO: 35mm × 45mm @ 300 DPI)
-        minWidth: 1050,              // ICAO-Standard: 1050px (35mm @ 300 DPI)
-        minHeight: 1350,             // ICAO-Standard: 1350px (45mm @ 300 DPI)
-        recommendedWidth: 1050,      // ICAO-Standard
-        recommendedHeight: 1350,     // ICAO-Standard
+        // Technische Anforderungen (gelockert für bessere UX)
+        minWidth: 800,               // Gelockert: 800px statt 1050px
+        minHeight: 1029,             // Gelockert: 1029px statt 1350px (Ratio 0.777 beibehalten)
+        recommendedWidth: 1050,      // ICAO-Standard (Empfehlung)
+        recommendedHeight: 1350,     // ICAO-Standard (Empfehlung)
 
-        // Seitenverhältnis (35:45 Portrait)
-        aspectRatioMin: 0.76,        // 35:45 = 0.777..., mit Toleranz
-        aspectRatioMax: 0.79,
+        // Seitenverhältnis (35:45 Portrait) - größere Toleranz
+        aspectRatioMin: 0.74,        // Gelockert: 0.74 statt 0.76
+        aspectRatioMax: 0.81,        // Gelockert: 0.81 statt 0.79
 
-        // Dateigröße
-        minFileSize: 50 * 1024,      // 50 KB
-        maxFileSize: 500 * 1024,     // 500 KB
+        // Dateigröße - größere Toleranz
+        minFileSize: 30 * 1024,      // Gelockert: 30 KB statt 50 KB
+        maxFileSize: 500 * 1024,     // Unverändert: 500 KB
 
         // Erlaubte Formate
         allowedFormats: ['image/jpeg', 'image/jpg', 'image/png'],
@@ -71,22 +73,22 @@
             centerTolerance: 0.15    // Toleranz für Zentrierung (15%)
         },
 
-        // Qualität
-        minSharpness: 100,           // Laplace-Varianz für Schärfe
-        minContrast: 40,             // Mindestkontrast
+        // Qualität - gelockert
+        minSharpness: 80,            // Gelockert: 80 statt 100
+        minContrast: 30,             // Gelockert: 30 statt 40
 
-        // Hintergrund (ICAO: Schlicht, einheitlich, hell)
+        // Hintergrund (ICAO: Schlicht, einheitlich, hell) - größere Toleranz
         background: {
-            minBrightness: 200,      // Min. Helligkeit (0-255, weiß/hellgrau)
-            maxVariance: 30,         // Max. Varianz (Einheitlichkeit)
+            minBrightness: 180,      // Gelockert: 180 statt 200 (dunkler erlaubt)
+            maxVariance: 50,         // Gelockert: 50 statt 30 (mehr Ungleichmäßigkeit)
             checkEnabled: true       // Hintergrund-Prüfung aktiviert
         },
 
-        // Facial Lighting (ICAOcheck-inspired: 4-Zonen-Analyse)
+        // Facial Lighting (ICAOcheck-inspired: 4-Zonen-Analyse) - größere Toleranz
         facialLighting: {
             enabled: true,           // 4-Zonen Lighting-Analyse aktiviert
-            maxIntensityRatio: 2.0,  // Max. Helligkeitsunterschied zwischen Zonen (2:1)
-            minZoneHomogeneity: 0.85, // Min. Homogenität pro Zone (0-1)
+            maxIntensityRatio: 2.5,  // Gelockert: 2.5 statt 2.0 (mehr Schatten erlaubt)
+            minZoneHomogeneity: 0.75, // Gelockert: 0.75 statt 0.85 (weniger homogen)
             edgeThresholdLow: 50,    // Canny Low Threshold
             edgeThresholdHigh: 150   // Canny High Threshold
         }
@@ -152,25 +154,25 @@
                     result.errors.push(...sizeCheck.errors);
                 }
 
-                // 3. Bild laden und Dimensionen prüfen (HARD ERROR)
+                // 3. Bild laden und Dimensionen prüfen (SOFT ERROR - mit Checkbox akzeptierbar)
                 const imageData = await this.loadImage(file);
                 result.details.image = imageData;
 
                 const dimensionCheck = this.validateDimensions(imageData);
                 result.details.dimensions = dimensionCheck;
                 if (!dimensionCheck.valid) {
-                    result.hardErrors.push(...dimensionCheck.errors);
+                    result.softErrors.push(...dimensionCheck.errors);
                     result.errors.push(...dimensionCheck.errors);
                 }
                 if (dimensionCheck.warnings.length > 0) {
                     result.warnings.push(...dimensionCheck.warnings);
                 }
 
-                // 4. Seitenverhältnis-Check (HARD ERROR)
+                // 4. Seitenverhältnis-Check (SOFT ERROR - mit Checkbox akzeptierbar)
                 const aspectCheck = this.validateAspectRatio(imageData);
                 result.details.aspectRatio = aspectCheck;
                 if (!aspectCheck.valid) {
-                    result.hardErrors.push(...aspectCheck.errors);
+                    result.softErrors.push(...aspectCheck.errors);
                     result.errors.push(...aspectCheck.errors);
                 }
 
@@ -1300,7 +1302,7 @@
  * - ✅ JPEG-Qualität-Anpassung für kleinere Dateien (optional)
  * - ⚠️ Client = Pre-Filter (~90% Fehler), Server = Vollständige ICAO-Prüfung
  *
- * Version: 2.4.4 - Use Formcycle checkbox cb1 instead of custom checkbox
+ * Version: 2.5.0 - Relaxed requirements for better UX (dimensions = soft errors)
  * Datum: 2025-01-14
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  */
@@ -1707,9 +1709,9 @@
             textAlign: 'center',
             fontSize: '13px'
         }).html(`
-            <div style="margin-bottom:6px">🔐 Biometrische Bildprüfung aktiv (ICAO-Standard)</div>
+            <div style="margin-bottom:6px">🔐 Biometrische Bildprüfung aktiv (ICAO-Kompatibel)</div>
             <div style="font-size:11px;font-weight:normal;opacity:0.9">
-                Führerscheinfoto • ICAO: 1050×1350px (35×45mm) • JPEG/PNG • Max 500 KB • Heller Hintergrund
+                Führerscheinfoto • Min: 800×1029px • Empfohlen: 1050×1350px • JPEG/PNG • Max 500 KB
             </div>
             ${!serverValidationEnabled ? `
                 <div style="margin-top:8px;padding:8px;background:rgba(0,0,0,0.3);border-radius:4px;font-size:11px;font-weight:normal">
